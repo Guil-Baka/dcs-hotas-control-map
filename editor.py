@@ -119,25 +119,35 @@ class ControlBox:
         self.subtitle_id = None
         self.footer_id = None
         self.resize_handle_id = None  # Visual resize handle
+        self.text_wrap_cache = {}  # Cache: (text, max_chars) -> wrapped_text
     
     def wrap_text(self, text, max_width_chars=15):
-        """Wrap text to fit within reasonable bounds. Simple character-based wrapping."""
+        """Wrap text to fit within reasonable bounds. Simple character-based wrapping with caching."""
+        cache_key = (text, max_width_chars)
+        if cache_key in self.text_wrap_cache:
+            return self.text_wrap_cache[cache_key]
+        
         if len(text) <= max_width_chars:
-            return text
-        # Break into multiple lines
-        words = text.split()
-        lines = []
-        current_line = []
-        for word in words:
-            if len(" ".join(current_line + [word])) <= max_width_chars:
-                current_line.append(word)
-            else:
-                if current_line:
-                    lines.append(" ".join(current_line))
-                current_line = [word]
-        if current_line:
-            lines.append(" ".join(current_line))
-        return "\n".join(lines)
+            wrapped = text
+        else:
+            # Break into multiple lines
+            words = text.split()
+            lines = []
+            current_line = []
+            for word in words:
+                if len(" ".join(current_line + [word])) <= max_width_chars:
+                    current_line.append(word)
+                else:
+                    if current_line:
+                        lines.append(" ".join(current_line))
+                    current_line = [word]
+            if current_line:
+                lines.append(" ".join(current_line))
+            wrapped = "\n".join(lines)
+        
+        # Cache the result
+        self.text_wrap_cache[cache_key] = wrapped
+        return wrapped
     
     def draw(self, zoom=1.0, pan_x=0, pan_y=0, show_resize_handle=False):
         """Draw the box with zoom and pan transformations.
@@ -274,6 +284,7 @@ class LayoutEditor:
         self.device_name = None
         self.image = None
         self.image_tk = None
+        self.image_thumbnail_cache = {}  # Cache: (width, height) -> ImageTk
         self.controls = []
         self.boxes = []
         self.zoom = 1.0
@@ -291,6 +302,7 @@ class LayoutEditor:
         self.last_mouse_y = 0
         self.panning = False
         self.space_pressed = False
+        self.canvas_need_redraw = True  # Track if canvas needs full redraw
         
         self.setup_ui()
     
@@ -441,14 +453,28 @@ class LayoutEditor:
         self.redraw_canvas()
     
     def redraw_canvas(self):
-        """Redraw canvas with image and boxes."""
+        """Redraw canvas with image and boxes. Optimized with image caching."""
         self.canvas.delete("all")
         
         if self.image:
-            # Draw image
-            display_image = self.image.copy()
-            display_image.thumbnail((int(self.image.width * self.zoom), int(self.image.height * self.zoom)))
-            self.image_tk = ImageTk.PhotoImage(display_image)
+            # Use cached thumbnail if zoom level matches
+            thumbnail_size = (int(self.image.width * self.zoom), int(self.image.height * self.zoom))
+            cache_key = thumbnail_size
+            
+            if cache_key not in self.image_thumbnail_cache:
+                # Create and cache thumbnail
+                display_image = self.image.copy()
+                display_image.thumbnail(thumbnail_size)
+                self.image_tk = ImageTk.PhotoImage(display_image)
+                self.image_thumbnail_cache[cache_key] = self.image_tk
+                # Limit cache to 5 entries to avoid memory bloat
+                if len(self.image_thumbnail_cache) > 5:
+                    oldest_key = next(iter(self.image_thumbnail_cache))
+                    del self.image_thumbnail_cache[oldest_key]
+            else:
+                # Use cached thumbnail
+                self.image_tk = self.image_thumbnail_cache[cache_key]
+            
             self.canvas.create_image(self.pan_x, self.pan_y, image=self.image_tk, anchor=tk.NW, tags="image")
         
         # Redraw all boxes with zoom and pan
@@ -571,7 +597,7 @@ class LayoutEditor:
                 return
     
     def on_canvas_drag(self, event):
-        """Handle drag - move boxes or resize in resize mode."""
+        """Handle drag - move boxes or resize in resize mode. Optimized for smooth dragging."""
         # If space is pressed, pan instead
         if self.space_pressed:
             dx = event.x - self.last_mouse_x
@@ -581,6 +607,7 @@ class LayoutEditor:
             self.last_mouse_x = event.x
             self.last_mouse_y = event.y
             self.redraw_canvas()
+            self.canvas.update_idletasks()  # Force immediate update
             return
         
         # If in resize mode, only allow resizing via handle
@@ -597,6 +624,7 @@ class LayoutEditor:
             self.last_mouse_x = event.x
             self.last_mouse_y = event.y
             self.redraw_canvas()
+            self.canvas.update_idletasks()  # Force immediate update
             return
         
         if self.dragging_box:
@@ -612,14 +640,18 @@ class LayoutEditor:
                 box.x += dx_model
                 box.y += dy_model
             
-            self.update_sidebar()
-            
+            # Skip sidebar update during drag for performance
             self.last_mouse_x = event.x
             self.last_mouse_y = event.y
             self.redraw_canvas()
+            self.canvas.update_idletasks()  # Force immediate update
     
     def on_canvas_release(self, event):
-        """Handle release."""
+        """Handle release - update sidebar after dragging finishes."""
+        if self.dragging_box or self.resizing_box:
+            # Update sidebar with final position/size after drag ends
+            self.update_sidebar()
+        
         self.dragging_box = None
         self.resizing_box = None
     
