@@ -633,13 +633,15 @@ class LayoutEditor:
             dx_model = (event.x - self.last_mouse_x) / self.zoom
             dy_model = (event.y - self.last_mouse_y) / self.zoom
             
-            # Drag selected boxes (not resizing - resize mode only via double-click)
-            if self.dragging_box not in self.selected_boxes:
-                self.selected_boxes = [self.dragging_box]
-            
-            for box in self.selected_boxes:
-                box.x += dx_model
-                box.y += dy_model
+            # Move the dragging box (and any multi-selected boxes with it)
+            # Only move selected_boxes if there are any, otherwise just move the dragging box
+            if self.selected_boxes:
+                for box in self.selected_boxes:
+                    box.x += dx_model
+                    box.y += dy_model
+            else:
+                self.dragging_box.x += dx_model
+                self.dragging_box.y += dy_model
             
             # Update sidebar during move so user sees position changing
             self.update_sidebar()
