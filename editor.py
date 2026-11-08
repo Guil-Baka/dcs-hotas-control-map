@@ -521,8 +521,9 @@ class LayoutEditor:
                 if self.resize_mode_box == box and box.is_on_resize_handle(model_x, model_y):
                     self.resizing_box = box
                 
-                # Select box for sidebar
+                # Select box for sidebar AND for visual highlighting (red outline)
                 self.selected_box = box
+                self.selected_boxes = [box]  # Add to selected_boxes for red outline
                 self.update_sidebar()
                 self.redraw_boxes()
                 return
