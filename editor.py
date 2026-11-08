@@ -101,6 +101,7 @@ class ControlBox:
         self.rect_id = None
         self.text_id = None
         self.subtitle_id = None
+        self.resize_handle_id = None  # Visual resize handle
     
     def draw(self, zoom=1.0, pan_x=0, pan_y=0):
         """Draw the box with zoom and pan transformations."""
@@ -136,6 +137,19 @@ class ControlBox:
                 text=self.subtitle, fill="#333333", font=("Arial", font_size_subtitle),
                 tags=f"subtitle_{id(self)}"
             )
+        
+        # Draw resize handle at bottom-right if selected
+        if self.selected:
+            handle_size = 20  # 20px per side = 40x40 on canvas (scales with zoom)
+            handle_x1 = x_scaled + w_scaled - handle_size
+            handle_y1 = y_scaled + h_scaled - handle_size
+            handle_x2 = x_scaled + w_scaled
+            handle_y2 = y_scaled + h_scaled
+            
+            self.resize_handle_id = self.canvas.create_rectangle(
+                handle_x1, handle_y1, handle_x2, handle_y2,
+                fill="#ff6b73", outline="#ff0000", width=2, tags=f"resize_{id(self)}"
+            )
     
     def redraw(self):
         """Redraw the box (used after changes). Note: box doesn't store zoom/pan; call via canvas redraw."""
@@ -144,9 +158,18 @@ class ControlBox:
         pass
     
     def contains(self, x, y):
-        """Check if point is inside this box."""
+        """Check if point is inside this box (model coordinates)."""
         return (self.x <= x <= self.x + self.width and 
                 self.y <= y <= self.y + self.height)
+    
+    def is_on_resize_handle(self, x, y):
+        """Check if point is on the resize handle (model coordinates). Returns True if on handle."""
+        if not self.selected:
+            return False
+        # Handle is 50x50 at bottom-right corner
+        handle_size = 50
+        return (self.x + self.width - handle_size <= x <= self.x + self.width and
+                self.y + self.height - handle_size <= y <= self.y + self.height)
     
     def move(self, dx, dy):
         """Move box by delta."""
@@ -198,6 +221,7 @@ class LayoutEditor:
         self.selected_boxes = []
         self.selected_box = None  # Current box being edited in sidebar
         self.dragging_box = None
+        self.resizing_box = None  # Box being resized via handle drag
         self.last_mouse_x = 0
         self.last_mouse_y = 0
         self.panning = False
@@ -394,7 +418,11 @@ class LayoutEditor:
                 self.last_mouse_x = event.x
                 self.last_mouse_y = event.y
                 
-                # Select box for sidebar (no edge-based resizing)
+                # Check if clicking on resize handle of selected box
+                if box.is_on_resize_handle(model_x, model_y):
+                    self.resizing_box = box
+                
+                # Select box for sidebar
                 self.selected_box = box
                 self.update_sidebar()
                 self.redraw_boxes()
@@ -486,15 +514,22 @@ class LayoutEditor:
             dx_model = (event.x - self.last_mouse_x) / self.zoom
             dy_model = (event.y - self.last_mouse_y) / self.zoom
             
-            # Drag selected boxes
-            if self.dragging_box not in self.selected_boxes:
-                self.selected_boxes = [self.dragging_box]
+            if self.resizing_box:
+                # Resize via handle drag
+                self.resizing_box.width = max(40, self.resizing_box.width + dx_model)
+                self.resizing_box.height = max(20, self.resizing_box.height + dy_model)
+                self.update_sidebar()
+            else:
+                # Drag selected boxes
+                if self.dragging_box not in self.selected_boxes:
+                    self.selected_boxes = [self.dragging_box]
+                
+                for box in self.selected_boxes:
+                    box.x += dx_model
+                    box.y += dy_model
+                
+                self.update_sidebar()
             
-            for box in self.selected_boxes:
-                box.x += dx_model
-                box.y += dy_model
-            
-            self.update_sidebar()
             self.last_mouse_x = event.x
             self.last_mouse_y = event.y
             self.redraw_canvas()
@@ -502,6 +537,7 @@ class LayoutEditor:
     def on_canvas_release(self, event):
         """Handle release."""
         self.dragging_box = None
+        self.resizing_box = None
     
     def redraw_boxes(self):
         """Redraw all boxes with selection states and update canvas."""

@@ -22,11 +22,13 @@ python editor.py
 ### Box Selection & Movement
 | Action | Result |
 |--------|--------|
+| Click Box | Select box (properties appear in sidebar) |
 | Click + Drag | Move single box |
-| Double-Click | Edit box text, key, position, size |
+| Drag Resize Handle | Resize box (50×50 red square at bottom-right corner) |
 | Ctrl + Click | Toggle box selection for multi-select |
 | Ctrl + Drag | Move multiple selected boxes |
-| Right-Click | Select box (color picker moved to sidebar) |
+| Double-Click | Edit box text/key/position/size in dialog |
+| Right-Click | Select box (color picker in sidebar) |
 
 ### Zoom & Pan
 | Action | Result |

@@ -8,7 +8,7 @@ A fully interactive, Figma-inspired editor for creating custom HOTAS device layo
 ✅ **DCS HTML Import** - Parse DCS control exports (shows button + command)  
 ✅ **Custom Boxes** - Insert boxes with any text/properties  
 ✅ **Figma-Style Editing** - Click box to select, sidebar shows/updates properties in real-time  
-✅ **Sidebar Resizing** - Edit width/height directly in properties sidebar  
+✅ **Visual Resize Handle** - 50×50 red square on selected boxes, drag to resize  
 ✅ **Draggable Boxes** - Position each control on the layout  
 ✅ **Multi-Select** - Ctrl+click to select multiple boxes, drag together  
 ✅ **Color Customization** - Inline color palette in sidebar  
@@ -53,8 +53,9 @@ python editor.py
 - Drag any selected box to move all together
 
 **Resize Boxes:**
-- Edit **Width** and **Height** fields in the sidebar
-- Click the "+" and "-" buttons to adjust, or type values directly
+- Click a selected box to show the resize handle (red 50×50 square at bottom-right)
+- Left-click and drag the handle to resize the box width and height together
+- Or use the sidebar Width/Height fields for precise sizing
 - Minimum width: 40px, minimum height: 20px
 
 **Customize Colors:**
@@ -158,7 +159,8 @@ The right sidebar shows the **selected box's properties** and updates in real-ti
 |--------|---------|
 | **Select Box** | Click on box (properties appear in sidebar) |
 | **Move Box** | Click + Drag (anywhere inside box) |
-| **Resize Box** | Edit Width/Height in sidebar (easier than dragging) |
+| **Resize Box** | Drag the red 50×50 handle at bottom-right corner |
+| **Precise Resize** | Edit Width/Height in sidebar for exact values |
 | **Multi-Select** | Ctrl + Click boxes (toggles selection) |
 | **Move Multiple** | Drag any selected box (all move together) |
 | **Change Color** | Select box → Click color in sidebar (3×5 palette grid) |
