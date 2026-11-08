@@ -597,7 +597,7 @@ class LayoutEditor:
                 return
     
     def on_canvas_drag(self, event):
-        """Handle drag - move boxes or resize in resize mode. Optimized for smooth dragging."""
+        """Handle drag - move boxes or resize in resize mode with real-time visual feedback."""
         # If space is pressed, pan instead
         if self.space_pressed:
             dx = event.x - self.last_mouse_x
@@ -607,7 +607,7 @@ class LayoutEditor:
             self.last_mouse_x = event.x
             self.last_mouse_y = event.y
             self.redraw_canvas()
-            self.canvas.update_idletasks()  # Force immediate update
+            self.canvas.update()  # Immediate visual update
             return
         
         # If in resize mode, only allow resizing via handle
@@ -619,12 +619,13 @@ class LayoutEditor:
                 
                 self.resizing_box.width = max(40, self.resizing_box.width + dx_model)
                 self.resizing_box.height = max(20, self.resizing_box.height + dy_model)
+                # Update sidebar during resize so user sees size changing
                 self.update_sidebar()
             
             self.last_mouse_x = event.x
             self.last_mouse_y = event.y
             self.redraw_canvas()
-            self.canvas.update_idletasks()  # Force immediate update
+            self.canvas.update()  # Immediate visual update
             return
         
         if self.dragging_box:
@@ -640,18 +641,16 @@ class LayoutEditor:
                 box.x += dx_model
                 box.y += dy_model
             
-            # Skip sidebar update during drag for performance
+            # Update sidebar during move so user sees position changing
+            self.update_sidebar()
+            
             self.last_mouse_x = event.x
             self.last_mouse_y = event.y
             self.redraw_canvas()
-            self.canvas.update_idletasks()  # Force immediate update
+            self.canvas.update()  # Immediate visual update
     
     def on_canvas_release(self, event):
-        """Handle release - update sidebar after dragging finishes."""
-        if self.dragging_box or self.resizing_box:
-            # Update sidebar with final position/size after drag ends
-            self.update_sidebar()
-        
+        """Handle release."""
         self.dragging_box = None
         self.resizing_box = None
     
