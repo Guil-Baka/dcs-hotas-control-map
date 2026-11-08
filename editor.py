@@ -87,7 +87,7 @@ class ControlBox:
     
     def __init__(self, canvas, x, y, width=80, height=40, text="", subtitle="", control_key="", color="#81ff83"):
         self.canvas = canvas
-        self.x = x
+        self.x = x  # Model coordinates (unscaled)
         self.y = y
         self.width = width
         self.height = height
@@ -101,31 +101,39 @@ class ControlBox:
         self.rect_id = None
         self.text_id = None
         self.subtitle_id = None
-        
-        self.draw()
     
-    def draw(self):
-        """Draw the box, title, and subtitle on canvas."""
+    def draw(self, zoom=1.0, pan_x=0, pan_y=0):
+        """Draw the box with zoom and pan transformations."""
+        # Apply transformations
+        x_scaled = self.x * zoom + pan_x
+        y_scaled = self.y * zoom + pan_y
+        w_scaled = self.width * zoom
+        h_scaled = self.height * zoom
+        
         outline = "#ff0000" if self.selected else "#333333"
-        width = 3 if self.selected else 1
+        width = max(1, int(3 * zoom)) if self.selected else 1
         
         self.rect_id = self.canvas.create_rectangle(
-            self.x, self.y, self.x + self.width, self.y + self.height,
+            x_scaled, y_scaled, x_scaled + w_scaled, y_scaled + h_scaled,
             fill=self.color, outline=outline, width=width, tags=f"box_{id(self)}"
         )
         
+        # Font size scales with zoom
+        font_size_title = max(7, int(9 * zoom))
+        font_size_subtitle = max(5, int(7 * zoom))
+        
         # Title text (larger, bold)
         self.text_id = self.canvas.create_text(
-            self.x + self.width / 2, self.y + self.height / 3,
-            text=self.text, fill="black", font=("Arial", 9, "bold"),
+            x_scaled + w_scaled / 2, y_scaled + h_scaled / 3,
+            text=self.text, fill="black", font=("Arial", font_size_title, "bold"),
             tags=f"text_{id(self)}"
         )
         
         # Subtitle text (smaller, regular)
         if self.subtitle:
             self.subtitle_id = self.canvas.create_text(
-                self.x + self.width / 2, self.y + 2 * self.height / 3,
-                text=self.subtitle, fill="#333333", font=("Arial", 7),
+                x_scaled + w_scaled / 2, y_scaled + 2 * h_scaled / 3,
+                text=self.subtitle, fill="#333333", font=("Arial", font_size_subtitle),
                 tags=f"subtitle_{id(self)}"
             )
     
@@ -353,9 +361,9 @@ class LayoutEditor:
             self.image_tk = ImageTk.PhotoImage(display_image)
             self.canvas.create_image(self.pan_x, self.pan_y, image=self.image_tk, anchor=tk.NW, tags="image")
         
-        # Redraw all boxes
+        # Redraw all boxes with zoom and pan
         for box in self.boxes:
-            box.redraw()
+            box.draw(self.zoom, self.pan_x, self.pan_y)
     
     def on_mousewheel(self, event):
         """Handle zoom with mouse wheel."""
@@ -364,21 +372,36 @@ class LayoutEditor:
         self.zoom_label.config(text=f"{int(self.zoom * 100)}%")
         self.redraw_canvas()
     
+    def screen_to_model(self, screen_x, screen_y):
+        """Convert screen coordinates to model coordinates (inverse of zoom/pan)."""
+        model_x = (screen_x - self.pan_x) / self.zoom if self.zoom > 0 else 0
+        model_y = (screen_y - self.pan_y) / self.zoom if self.zoom > 0 else 0
+        return model_x, model_y
+    
+    def model_to_screen(self, model_x, model_y):
+        """Convert model coordinates to screen coordinates (apply zoom/pan)."""
+        screen_x = model_x * self.zoom + self.pan_x
+        screen_y = model_y * self.zoom + self.pan_y
+        return screen_x, screen_y
+    
     def on_canvas_left_click(self, event):
         """Handle left click - select or resize."""
         if self.drawing_line:
             self.handle_line_click(event, is_right=False)
             return
         
+        # Convert screen coords to model coords
+        model_x, model_y = self.screen_to_model(event.x, event.y)
+        
         # Check if clicking on a box
         for box in self.boxes:
-            if box.contains(event.x, event.y):
+            if box.contains(model_x, model_y):
                 self.dragging_box = box
                 self.last_mouse_x = event.x
                 self.last_mouse_y = event.y
                 
-                # Detect which edge/corner is being dragged (10px tolerance)
-                edge = self.get_resize_edge(box, event.x, event.y)
+                # Detect which edge/corner is being dragged
+                edge = self.get_resize_edge(box, model_x, model_y)
                 if edge:
                     self.resizing_box = box
                     self.resize_edge = edge
@@ -397,7 +420,8 @@ class LayoutEditor:
     
     def get_resize_edge(self, box, x, y):
         """Detect which edge/corner the click is near. Returns 'top', 'bottom', 'left', 'right', or 'corner'."""
-        tolerance = 8
+        # Tolerance scales with zoom so resize handles are easy to click at any zoom level
+        tolerance = 8 / self.zoom
         left = abs(x - box.x) < tolerance
         right = abs(x - (box.x + box.width)) < tolerance
         top = abs(y - box.y) < tolerance
@@ -455,15 +479,17 @@ class LayoutEditor:
             self.handle_line_click(event, is_right=True)
             return
         
+        model_x, model_y = self.screen_to_model(event.x, event.y)
         for box in self.boxes:
-            if box.contains(event.x, event.y):
+            if box.contains(model_x, model_y):
                 self.show_color_picker(box, event.x, event.y)
                 return
     
     def on_canvas_ctrl_click(self, event):
         """Handle Ctrl+click - multi-select."""
+        model_x, model_y = self.screen_to_model(event.x, event.y)
         for box in self.boxes:
-            if box.contains(event.x, event.y):
+            if box.contains(model_x, model_y):
                 if box not in self.selected_boxes:
                     self.selected_boxes.append(box)
                 else:
@@ -485,8 +511,9 @@ class LayoutEditor:
             return
         
         if self.dragging_box:
-            dx = event.x - self.last_mouse_x
-            dy = event.y - self.last_mouse_y
+            # Convert deltas to model space (unzoom them)
+            dx_model = (event.x - self.last_mouse_x) / self.zoom
+            dy_model = (event.y - self.last_mouse_y) / self.zoom
             
             if self.resizing_box and self.resize_edge:
                 # Resize based on which edge(s) are being dragged
@@ -495,20 +522,19 @@ class LayoutEditor:
                 
                 if edge == "corner":
                     # Bottom-right corner
-                    box.width = max(40, box.width + dx)
-                    box.height = max(20, box.height + dy)
+                    box.width = max(40, box.width + dx_model)
+                    box.height = max(20, box.height + dy_model)
                 elif edge == "bottom":
-                    box.height = max(20, box.height + dy)
+                    box.height = max(20, box.height + dy_model)
                 elif edge == "right":
-                    box.width = max(40, box.width + dx)
+                    box.width = max(40, box.width + dx_model)
                 elif edge == "top":
-                    box.y += dy
-                    box.height = max(20, box.height - dy)
+                    box.y += dy_model
+                    box.height = max(20, box.height - dy_model)
                 elif edge == "left":
-                    box.x += dx
-                    box.width = max(40, box.width - dx)
+                    box.x += dx_model
+                    box.width = max(40, box.width - dx_model)
                 
-                box.redraw()
                 self.update_sidebar()
             else:
                 # Drag selected boxes
@@ -516,7 +542,8 @@ class LayoutEditor:
                     self.selected_boxes = [self.dragging_box]
                 
                 for box in self.selected_boxes:
-                    box.move(dx, dy)
+                    box.x += dx_model
+                    box.y += dy_model
                 
                 self.update_sidebar()
             
@@ -531,9 +558,10 @@ class LayoutEditor:
         self.resize_edge = None
     
     def redraw_boxes(self):
-        """Redraw all boxes with selection states."""
+        """Redraw all boxes with selection states and update canvas."""
         for box in self.boxes:
             box.set_select(box in self.selected_boxes)
+        self.redraw_canvas()
     
     def show_color_picker(self, box, x, y):
         """Show color palette popup at mouse position."""
@@ -770,8 +798,9 @@ class LayoutEditor:
     
     def on_canvas_double_click(self, event):
         """Handle double-click to edit box."""
+        model_x, model_y = self.screen_to_model(event.x, event.y)
         for box in self.boxes:
-            if box.contains(event.x, event.y):
+            if box.contains(model_x, model_y):
                 self.edit_box(box)
                 return
     
@@ -844,27 +873,24 @@ class LayoutEditor:
     
     def handle_line_click(self, event, is_right):
         """Handle clicks while drawing line."""
+        # Store all waypoints in model coordinates
+        model_x, model_y = self.screen_to_model(event.x, event.y)
+        
         if not self.line_start:
-            self.line_start = (event.x, event.y)
+            self.line_start = (model_x, model_y)
             self.status.config(text="Line started. Right-click for waypoint, left-click to end")
             return
         
         if is_right:
             # Add waypoint
-            self.line_waypoints.append((event.x, event.y))
-            self.line_start = (event.x, event.y)
+            self.line_waypoints.append((model_x, model_y))
+            self.line_start = (model_x, model_y)
             self.status.config(text=f"Waypoint added. Right-click for more, left-click to end")
         else:
             # End line
-            self.line_waypoints.append((event.x, event.y))
-            # Draw the line on canvas
-            for i in range(len(self.line_waypoints) - 1):
-                self.canvas.create_line(
-                    self.line_waypoints[i][0], self.line_waypoints[i][1],
-                    self.line_waypoints[i + 1][0], self.line_waypoints[i + 1][1],
-                    fill="red", width=2
-                )
-            
+            self.line_waypoints.append((model_x, model_y))
+            # Lines are drawn in redraw_canvas to respect zoom/pan
+            # For now, just mark line as drawn
             self.drawing_line = False
             self.line_start = None
             self.line_waypoints = []
