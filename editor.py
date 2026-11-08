@@ -85,14 +85,15 @@ def parse_html(html_path):
 class ControlBox:
     """Represents a draggable/resizable control box on the canvas."""
     
-    def __init__(self, canvas, x, y, width=80, height=40, text="", subtitle="", control_key="", color="#81ff83"):
+    def __init__(self, canvas, x, y, width=80, height=40, text="", subtitle="", footer="", control_key="", color="#81ff83"):
         self.canvas = canvas
         self.x = x  # Model coordinates (unscaled)
         self.y = y
         self.width = width
         self.height = height
-        self.text = text  # Title (button name)
-        self.subtitle = subtitle  # Subtitle (function/command)
+        self.text = text  # Title (button name) - top
+        self.subtitle = subtitle  # Subtitle (function/command) - middle
+        self.footer = footer  # Footer (optional) - bottom
         self.control_key = control_key
         self.color = color
         self.selected = False
@@ -101,7 +102,27 @@ class ControlBox:
         self.rect_id = None
         self.text_id = None
         self.subtitle_id = None
+        self.footer_id = None
         self.resize_handle_id = None  # Visual resize handle
+    
+    def wrap_text(self, text, max_width_chars=15):
+        """Wrap text to fit within reasonable bounds. Simple character-based wrapping."""
+        if len(text) <= max_width_chars:
+            return text
+        # Break into multiple lines
+        words = text.split()
+        lines = []
+        current_line = []
+        for word in words:
+            if len(" ".join(current_line + [word])) <= max_width_chars:
+                current_line.append(word)
+            else:
+                if current_line:
+                    lines.append(" ".join(current_line))
+                current_line = [word]
+        if current_line:
+            lines.append(" ".join(current_line))
+        return "\n".join(lines)
     
     def draw(self, zoom=1.0, pan_x=0, pan_y=0):
         """Draw the box with zoom and pan transformations."""
@@ -122,20 +143,35 @@ class ControlBox:
         # Font size scales with zoom
         font_size_title = max(7, int(9 * zoom))
         font_size_subtitle = max(5, int(7 * zoom))
+        font_size_footer = max(4, int(6 * zoom))
         
-        # Title text (larger, bold)
+        # Title text - at top (within 2% of box height from top)
+        title_y = y_scaled + h_scaled * 0.08  # 2% + some padding
         self.text_id = self.canvas.create_text(
-            x_scaled + w_scaled / 2, y_scaled + h_scaled / 3,
-            text=self.text, fill="black", font=("Arial", font_size_title, "bold"),
-            tags=f"text_{id(self)}"
+            x_scaled + w_scaled / 2, title_y,
+            text=self.wrap_text(self.text, int(self.width / 5)), 
+            fill="black", font=("Arial", font_size_title, "bold"),
+            tags=f"text_{id(self)}", justify=tk.CENTER, width=int(w_scaled * 0.9)
         )
         
-        # Subtitle text (smaller, regular)
+        # Subtitle text - in middle
+        subtitle_y = y_scaled + h_scaled * 0.5
         if self.subtitle:
             self.subtitle_id = self.canvas.create_text(
-                x_scaled + w_scaled / 2, y_scaled + 2 * h_scaled / 3,
-                text=self.subtitle, fill="#333333", font=("Arial", font_size_subtitle),
-                tags=f"subtitle_{id(self)}"
+                x_scaled + w_scaled / 2, subtitle_y,
+                text=self.wrap_text(self.subtitle, int(self.width / 5)),
+                fill="#333333", font=("Arial", font_size_subtitle),
+                tags=f"subtitle_{id(self)}", justify=tk.CENTER, width=int(w_scaled * 0.9)
+            )
+        
+        # Footer text - at bottom (within 2% of box height from bottom)
+        footer_y = y_scaled + h_scaled * 0.92  # 2% from bottom
+        if self.footer:
+            self.footer_id = self.canvas.create_text(
+                x_scaled + w_scaled / 2, footer_y,
+                text=self.wrap_text(self.footer, int(self.width / 5)),
+                fill="#555555", font=("Arial", font_size_footer),
+                tags=f"footer_{id(self)}", justify=tk.CENTER, width=int(w_scaled * 0.9)
             )
         
         # Draw resize handle at bottom-right if selected
@@ -582,6 +618,18 @@ class LayoutEditor:
         
         subtitle_var.trace("w", on_subtitle_change)
         
+        # Footer property (optional)
+        ttk.Label(self.properties_inner, text="Footer (Optional)", font=("Arial", 10, "bold")).pack(anchor="w", padx=10, pady=(10, 5))
+        footer_var = tk.StringVar(value=box.footer)
+        footer_entry = ttk.Entry(self.properties_inner, textvariable=footer_var, width=25)
+        footer_entry.pack(padx=10, pady=5, fill=tk.X)
+        
+        def on_footer_change(*args):
+            box.footer = footer_var.get()
+            self.redraw_canvas()
+        
+        footer_var.trace("w", on_footer_change)
+        
         # Control Key property
         ttk.Label(self.properties_inner, text="Control Key", font=("Arial", 10, "bold")).pack(anchor="w", padx=10, pady=(10, 5))
         key_var = tk.StringVar(value=box.control_key)
@@ -696,7 +744,7 @@ class LayoutEditor:
         # Create dialog for box properties
         dialog = tk.Toplevel(self.root)
         dialog.title("Insert Custom Box")
-        dialog.geometry("300x350")
+        dialog.geometry("300x420")
         dialog.transient(self.root)
         dialog.grab_set()
         
@@ -710,30 +758,35 @@ class LayoutEditor:
         subtitle_entry = tk.Entry(dialog, textvariable=subtitle_var, width=20)
         subtitle_entry.grid(row=1, column=1, padx=10, pady=5)
         
-        tk.Label(dialog, text="Control Key:").grid(row=2, column=0, padx=10, pady=5, sticky="w")
+        tk.Label(dialog, text="Footer (Optional):").grid(row=2, column=0, padx=10, pady=5, sticky="w")
+        footer_var = tk.StringVar(value="")
+        footer_entry = tk.Entry(dialog, textvariable=footer_var, width=20)
+        footer_entry.grid(row=2, column=1, padx=10, pady=5)
+        
+        tk.Label(dialog, text="Control Key:").grid(row=3, column=0, padx=10, pady=5, sticky="w")
         key_var = tk.StringVar(value="CUSTOM_1")
         key_entry = tk.Entry(dialog, textvariable=key_var, width=20)
-        key_entry.grid(row=2, column=1, padx=10, pady=5)
+        key_entry.grid(row=3, column=1, padx=10, pady=5)
         
-        tk.Label(dialog, text="X Position:").grid(row=3, column=0, padx=10, pady=5, sticky="w")
+        tk.Label(dialog, text="X Position:").grid(row=4, column=0, padx=10, pady=5, sticky="w")
         x_var = tk.StringVar(value="100")
         x_entry = tk.Entry(dialog, textvariable=x_var, width=20)
-        x_entry.grid(row=3, column=1, padx=10, pady=5)
+        x_entry.grid(row=4, column=1, padx=10, pady=5)
         
-        tk.Label(dialog, text="Y Position:").grid(row=4, column=0, padx=10, pady=5, sticky="w")
+        tk.Label(dialog, text="Y Position:").grid(row=5, column=0, padx=10, pady=5, sticky="w")
         y_var = tk.StringVar(value="100")
         y_entry = tk.Entry(dialog, textvariable=y_var, width=20)
-        y_entry.grid(row=4, column=1, padx=10, pady=5)
+        y_entry.grid(row=5, column=1, padx=10, pady=5)
         
-        tk.Label(dialog, text="Width:").grid(row=5, column=0, padx=10, pady=5, sticky="w")
+        tk.Label(dialog, text="Width:").grid(row=6, column=0, padx=10, pady=5, sticky="w")
         w_var = tk.StringVar(value="100")
         w_entry = tk.Entry(dialog, textvariable=w_var, width=20)
-        w_entry.grid(row=5, column=1, padx=10, pady=5)
+        w_entry.grid(row=6, column=1, padx=10, pady=5)
         
-        tk.Label(dialog, text="Height:").grid(row=6, column=0, padx=10, pady=5, sticky="w")
+        tk.Label(dialog, text="Height:").grid(row=7, column=0, padx=10, pady=5, sticky="w")
         h_var = tk.StringVar(value="60")
         h_entry = tk.Entry(dialog, textvariable=h_var, width=20)
-        h_entry.grid(row=6, column=1, padx=10, pady=5)
+        h_entry.grid(row=7, column=1, padx=10, pady=5)
         
         def create_box():
             try:
@@ -745,6 +798,7 @@ class LayoutEditor:
                     height=int(h_var.get()),
                     text=text_var.get(),
                     subtitle=subtitle_var.get(),
+                    footer=footer_var.get(),
                     control_key=key_var.get(),
                     color="#81ff83"
                 )
@@ -755,7 +809,7 @@ class LayoutEditor:
             except ValueError:
                 messagebox.showerror("Error", "Invalid numeric values")
         
-        ttk.Button(dialog, text="Create", command=create_box).grid(row=7, column=0, columnspan=2, pady=20)
+        ttk.Button(dialog, text="Create", command=create_box).grid(row=8, column=0, columnspan=2, pady=20)
     
     def on_canvas_double_click(self, event):
         """Handle double-click to edit box."""
@@ -769,7 +823,7 @@ class LayoutEditor:
         """Edit a box's properties."""
         dialog = tk.Toplevel(self.root)
         dialog.title("Edit Box")
-        dialog.geometry("300x350")
+        dialog.geometry("300x420")
         dialog.transient(self.root)
         dialog.grab_set()
         
@@ -783,41 +837,46 @@ class LayoutEditor:
         subtitle_entry = tk.Entry(dialog, textvariable=subtitle_var, width=20)
         subtitle_entry.grid(row=1, column=1, padx=10, pady=5)
         
-        tk.Label(dialog, text="Control Key:").grid(row=2, column=0, padx=10, pady=5, sticky="w")
+        tk.Label(dialog, text="Footer (Optional):").grid(row=2, column=0, padx=10, pady=5, sticky="w")
+        footer_var = tk.StringVar(value=box.footer)
+        footer_entry = tk.Entry(dialog, textvariable=footer_var, width=20)
+        footer_entry.grid(row=2, column=1, padx=10, pady=5)
+        
+        tk.Label(dialog, text="Control Key:").grid(row=3, column=0, padx=10, pady=5, sticky="w")
         key_var = tk.StringVar(value=box.control_key)
         key_entry = tk.Entry(dialog, textvariable=key_var, width=20)
-        key_entry.grid(row=2, column=1, padx=10, pady=5)
+        key_entry.grid(row=3, column=1, padx=10, pady=5)
         
-        tk.Label(dialog, text="X Position:").grid(row=3, column=0, padx=10, pady=5, sticky="w")
+        tk.Label(dialog, text="X Position:").grid(row=4, column=0, padx=10, pady=5, sticky="w")
         x_var = tk.StringVar(value=str(int(box.x)))
         x_entry = tk.Entry(dialog, textvariable=x_var, width=20)
-        x_entry.grid(row=3, column=1, padx=10, pady=5)
+        x_entry.grid(row=4, column=1, padx=10, pady=5)
         
-        tk.Label(dialog, text="Y Position:").grid(row=4, column=0, padx=10, pady=5, sticky="w")
+        tk.Label(dialog, text="Y Position:").grid(row=5, column=0, padx=10, pady=5, sticky="w")
         y_var = tk.StringVar(value=str(int(box.y)))
         y_entry = tk.Entry(dialog, textvariable=y_var, width=20)
-        y_entry.grid(row=4, column=1, padx=10, pady=5)
+        y_entry.grid(row=5, column=1, padx=10, pady=5)
         
-        tk.Label(dialog, text="Width:").grid(row=5, column=0, padx=10, pady=5, sticky="w")
+        tk.Label(dialog, text="Width:").grid(row=6, column=0, padx=10, pady=5, sticky="w")
         w_var = tk.StringVar(value=str(int(box.width)))
         w_entry = tk.Entry(dialog, textvariable=w_var, width=20)
-        w_entry.grid(row=5, column=1, padx=10, pady=5)
+        w_entry.grid(row=6, column=1, padx=10, pady=5)
         
-        tk.Label(dialog, text="Height:").grid(row=6, column=0, padx=10, pady=5, sticky="w")
+        tk.Label(dialog, text="Height:").grid(row=7, column=0, padx=10, pady=5, sticky="w")
         h_var = tk.StringVar(value=str(int(box.height)))
         h_entry = tk.Entry(dialog, textvariable=h_var, width=20)
-        h_entry.grid(row=6, column=1, padx=10, pady=5)
+        h_entry.grid(row=7, column=1, padx=10, pady=5)
         
         def save_changes():
             try:
                 box.text = text_var.get()
                 box.subtitle = subtitle_var.get()
+                box.footer = footer_var.get()
                 box.control_key = key_var.get()
                 box.x = int(x_var.get())
                 box.y = int(y_var.get())
                 box.width = int(w_var.get())
                 box.height = int(h_var.get())
-                box.redraw()
                 self.redraw_canvas()
                 dialog.destroy()
                 self.status.config(text="Box edited")
@@ -876,6 +935,7 @@ class LayoutEditor:
                     "height": box.height,
                     "text": box.text,
                     "subtitle": box.subtitle,
+                    "footer": box.footer,
                     "control_key": box.control_key,
                     "color": box.color
                 }
@@ -906,20 +966,28 @@ class LayoutEditor:
                 [box.x, box.y, box.x + box.width, box.y + box.height],
                 fill=box.color, outline="#333333", width=2
             )
-            # Draw title
-            title_y = box.y + box.height / 3
+            # Draw title (at top, within 2%)
+            title_y = box.y + box.height * 0.08
             draw.text(
                 (box.x + box.width / 2, title_y),
                 box.text,
                 fill="black", anchor="mm", font=None
             )
-            # Draw subtitle
+            # Draw subtitle (in middle)
             if box.subtitle:
-                subtitle_y = box.y + 2 * box.height / 3
+                subtitle_y = box.y + box.height * 0.5
                 draw.text(
                     (box.x + box.width / 2, subtitle_y),
                     box.subtitle,
                     fill="#333333", anchor="mm", font=None
+                )
+            # Draw footer (at bottom, within 2%)
+            if box.footer:
+                footer_y = box.y + box.height * 0.92
+                draw.text(
+                    (box.x + box.width / 2, footer_y),
+                    box.footer,
+                    fill="#555555", anchor="mm", font=None
                 )
         
         device_dir = LAYOUTS_DIR / self.device_name
