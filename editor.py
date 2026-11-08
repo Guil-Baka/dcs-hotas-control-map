@@ -139,8 +139,15 @@ class ControlBox:
             lines.append(" ".join(current_line))
         return "\n".join(lines)
     
-    def draw(self, zoom=1.0, pan_x=0, pan_y=0):
-        """Draw the box with zoom and pan transformations."""
+    def draw(self, zoom=1.0, pan_x=0, pan_y=0, show_resize_handle=False):
+        """Draw the box with zoom and pan transformations.
+        
+        Args:
+            zoom: Zoom level
+            pan_x: Pan offset in X
+            pan_y: Pan offset in Y
+            show_resize_handle: Whether to show the resize handle (only in resize mode)
+        """
         # Apply transformations
         x_scaled = self.x * zoom + pan_x
         y_scaled = self.y * zoom + pan_y
@@ -189,8 +196,8 @@ class ControlBox:
                 tags=f"footer_{id(self)}", justify=tk.CENTER, width=int(w_scaled * 0.9)
             )
         
-        # Draw resize handle at bottom-right if selected
-        if self.selected:
+        # Draw resize handle at bottom-right only if in resize mode
+        if show_resize_handle:
             # Handle is 50x50 in model coordinates (scales with zoom)
             handle_size_model = 50
             handle_size_screen = handle_size_model * zoom
@@ -279,6 +286,7 @@ class LayoutEditor:
         self.selected_box = None  # Current box being edited in sidebar
         self.dragging_box = None
         self.resizing_box = None  # Box being resized via handle drag
+        self.resize_mode_box = None  # Box in resize mode (activated by double-click)
         self.last_mouse_x = 0
         self.last_mouse_y = 0
         self.panning = False
@@ -445,7 +453,8 @@ class LayoutEditor:
         
         # Redraw all boxes with zoom and pan
         for box in self.boxes:
-            box.draw(self.zoom, self.pan_x, self.pan_y)
+            show_handle = (box == self.resize_mode_box)
+            box.draw(self.zoom, self.pan_x, self.pan_y, show_resize_handle=show_handle)
     
     def on_mousewheel(self, event):
         """Handle zoom with mouse wheel."""
@@ -467,7 +476,7 @@ class LayoutEditor:
         return screen_x, screen_y
     
     def on_canvas_left_click(self, event):
-        """Handle left click - select or resize."""
+        """Handle left click - select box or start resize in resize mode."""
         if self.drawing_line:
             self.handle_line_click(event, is_right=False)
             return
@@ -482,8 +491,8 @@ class LayoutEditor:
                 self.last_mouse_x = event.x
                 self.last_mouse_y = event.y
                 
-                # Check if clicking on resize handle of selected box
-                if box.is_on_resize_handle(model_x, model_y):
+                # Only allow resize handle drag if in resize mode for this box
+                if self.resize_mode_box == box and box.is_on_resize_handle(model_x, model_y):
                     self.resizing_box = box
                 
                 # Select box for sidebar
@@ -492,9 +501,10 @@ class LayoutEditor:
                 self.redraw_boxes()
                 return
         
-        # No box clicked - deselect
+        # Clicked outside boxes - deselect and exit resize mode
         self.selected_boxes = []
         self.selected_box = None
+        self.resize_mode_box = None
         self.update_sidebar()
         self.redraw_boxes()
     
@@ -561,7 +571,7 @@ class LayoutEditor:
                 return
     
     def on_canvas_drag(self, event):
-        """Handle drag - move boxes (resizing via sidebar only)."""
+        """Handle drag - move boxes or resize in resize mode."""
         # If space is pressed, pan instead
         if self.space_pressed:
             dx = event.x - self.last_mouse_x
@@ -573,26 +583,36 @@ class LayoutEditor:
             self.redraw_canvas()
             return
         
+        # If in resize mode, only allow resizing via handle
+        if self.resize_mode_box:
+            if self.resizing_box:
+                # Resize via handle drag in resize mode
+                dx_model = (event.x - self.last_mouse_x) / self.zoom
+                dy_model = (event.y - self.last_mouse_y) / self.zoom
+                
+                self.resizing_box.width = max(40, self.resizing_box.width + dx_model)
+                self.resizing_box.height = max(20, self.resizing_box.height + dy_model)
+                self.update_sidebar()
+            
+            self.last_mouse_x = event.x
+            self.last_mouse_y = event.y
+            self.redraw_canvas()
+            return
+        
         if self.dragging_box:
             # Convert deltas to model space (unzoom them)
             dx_model = (event.x - self.last_mouse_x) / self.zoom
             dy_model = (event.y - self.last_mouse_y) / self.zoom
             
-            if self.resizing_box:
-                # Resize via handle drag
-                self.resizing_box.width = max(40, self.resizing_box.width + dx_model)
-                self.resizing_box.height = max(20, self.resizing_box.height + dy_model)
-                self.update_sidebar()
-            else:
-                # Drag selected boxes
-                if self.dragging_box not in self.selected_boxes:
-                    self.selected_boxes = [self.dragging_box]
-                
-                for box in self.selected_boxes:
-                    box.x += dx_model
-                    box.y += dy_model
-                
-                self.update_sidebar()
+            # Drag selected boxes (not resizing - resize mode only via double-click)
+            if self.dragging_box not in self.selected_boxes:
+                self.selected_boxes = [self.dragging_box]
+            
+            for box in self.selected_boxes:
+                box.x += dx_model
+                box.y += dy_model
+            
+            self.update_sidebar()
             
             self.last_mouse_x = event.x
             self.last_mouse_y = event.y
@@ -840,78 +860,24 @@ class LayoutEditor:
         ttk.Button(dialog, text="Create", command=create_box).grid(row=8, column=0, columnspan=2, pady=20)
     
     def on_canvas_double_click(self, event):
-        """Handle double-click to edit box."""
+        """Handle double-click to enable/disable resize mode."""
         model_x, model_y = self.screen_to_model(event.x, event.y)
+        
+        # Check if double-clicking the same box that's in resize mode - toggle off
+        if self.resize_mode_box:
+            if self.resize_mode_box.contains(model_x, model_y):
+                self.resize_mode_box = None
+                self.redraw_boxes()
+                return
+        
+        # Check if double-clicking a box to enter resize mode
         for box in self.boxes:
             if box.contains(model_x, model_y):
-                self.edit_box(box)
+                self.resize_mode_box = box
+                self.selected_box = box
+                self.update_sidebar()
+                self.redraw_boxes()
                 return
-    
-    def edit_box(self, box):
-        """Edit a box's properties."""
-        dialog = tk.Toplevel(self.root)
-        dialog.title("Edit Box")
-        dialog.geometry("300x420")
-        dialog.transient(self.root)
-        dialog.grab_set()
-        
-        tk.Label(dialog, text="Title (Button):").grid(row=0, column=0, padx=10, pady=5, sticky="w")
-        text_var = tk.StringVar(value=box.text)
-        text_entry = tk.Entry(dialog, textvariable=text_var, width=20)
-        text_entry.grid(row=0, column=1, padx=10, pady=5)
-        
-        tk.Label(dialog, text="Subtitle (Function):").grid(row=1, column=0, padx=10, pady=5, sticky="w")
-        subtitle_var = tk.StringVar(value=box.subtitle)
-        subtitle_entry = tk.Entry(dialog, textvariable=subtitle_var, width=20)
-        subtitle_entry.grid(row=1, column=1, padx=10, pady=5)
-        
-        tk.Label(dialog, text="Footer (Optional):").grid(row=2, column=0, padx=10, pady=5, sticky="w")
-        footer_var = tk.StringVar(value=box.footer)
-        footer_entry = tk.Entry(dialog, textvariable=footer_var, width=20)
-        footer_entry.grid(row=2, column=1, padx=10, pady=5)
-        
-        tk.Label(dialog, text="Control Key:").grid(row=3, column=0, padx=10, pady=5, sticky="w")
-        key_var = tk.StringVar(value=box.control_key)
-        key_entry = tk.Entry(dialog, textvariable=key_var, width=20)
-        key_entry.grid(row=3, column=1, padx=10, pady=5)
-        
-        tk.Label(dialog, text="X Position:").grid(row=4, column=0, padx=10, pady=5, sticky="w")
-        x_var = tk.StringVar(value=str(int(box.x)))
-        x_entry = tk.Entry(dialog, textvariable=x_var, width=20)
-        x_entry.grid(row=4, column=1, padx=10, pady=5)
-        
-        tk.Label(dialog, text="Y Position:").grid(row=5, column=0, padx=10, pady=5, sticky="w")
-        y_var = tk.StringVar(value=str(int(box.y)))
-        y_entry = tk.Entry(dialog, textvariable=y_var, width=20)
-        y_entry.grid(row=5, column=1, padx=10, pady=5)
-        
-        tk.Label(dialog, text="Width:").grid(row=6, column=0, padx=10, pady=5, sticky="w")
-        w_var = tk.StringVar(value=str(int(box.width)))
-        w_entry = tk.Entry(dialog, textvariable=w_var, width=20)
-        w_entry.grid(row=6, column=1, padx=10, pady=5)
-        
-        tk.Label(dialog, text="Height:").grid(row=7, column=0, padx=10, pady=5, sticky="w")
-        h_var = tk.StringVar(value=str(int(box.height)))
-        h_entry = tk.Entry(dialog, textvariable=h_var, width=20)
-        h_entry.grid(row=7, column=1, padx=10, pady=5)
-        
-        def save_changes():
-            try:
-                box.text = text_var.get()
-                box.subtitle = subtitle_var.get()
-                box.footer = footer_var.get()
-                box.control_key = key_var.get()
-                box.x = int(x_var.get())
-                box.y = int(y_var.get())
-                box.width = int(w_var.get())
-                box.height = int(h_var.get())
-                self.redraw_canvas()
-                dialog.destroy()
-                self.status.config(text="Box edited")
-            except ValueError:
-                messagebox.showerror("Error", "Invalid numeric values")
-        
-        ttk.Button(dialog, text="Save", command=save_changes).grid(row=7, column=0, columnspan=2, pady=20)
     
     def start_line_mode(self):
         """Start line drawing mode."""
