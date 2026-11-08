@@ -66,18 +66,33 @@ def parse_html(html_path):
     controls = []
     for combo, command, category, *_ in parser.rows:
         for binding in combo.split(";"):
-            parts = re.split(r"\s+-\s+", binding.strip())
-            if parts and parts[-1]:
-                button_name = parts[-1]
-                # Combine button name with command (abbreviated)
-                display_text = f"{button_name}: {command[:20]}" if command else button_name
-                controls.append({
-                    "key": button_name,
-                    "modifiers": parts[:-1],
-                    "command": command,
-                    "category": category,
-                    "display_text": display_text
-                })
+            binding_str = binding.strip()
+            if not binding_str:
+                continue
+            
+            # Split by " - " to separate modifier(s) from button
+            # Format: "JOY_BTN2 - JOY_BTN4" means JOY_BTN4 with JOY_BTN2 held
+            parts = binding_str.split(" - ")
+            button_name = parts[-1]  # Last part is the actual button
+            modifiers = parts[:-1]   # Everything before is modifiers
+            
+            # Create modifier text for footer (e.g., "Mod: BTN2")
+            modifier_text = ""
+            if modifiers:
+                mod_names = []
+                for mod in modifiers:
+                    # Extract button number from "JOY_BTN2" -> "BTN2"
+                    mod_clean = mod.replace("JOY_", "").replace("_", " ")
+                    mod_names.append(mod_clean)
+                modifier_text = f"Mod: {', '.join(mod_names)}"
+            
+            controls.append({
+                "key": button_name,
+                "modifiers": modifiers,
+                "modifier_text": modifier_text,
+                "command": command,
+                "category": category,
+            })
     
     return controls
 
@@ -176,9 +191,11 @@ class ControlBox:
         
         # Draw resize handle at bottom-right if selected
         if self.selected:
-            handle_size = 20  # 20px per side = 40x40 on canvas (scales with zoom)
-            handle_x1 = x_scaled + w_scaled - handle_size
-            handle_y1 = y_scaled + h_scaled - handle_size
+            # Handle is 50x50 in model coordinates (scales with zoom)
+            handle_size_model = 50
+            handle_size_screen = handle_size_model * zoom
+            handle_x1 = x_scaled + w_scaled - handle_size_screen
+            handle_y1 = y_scaled + h_scaled - handle_size_screen
             handle_x2 = x_scaled + w_scaled
             handle_y2 = y_scaled + h_scaled
             
@@ -192,6 +209,10 @@ class ControlBox:
         # This method is deprecated - use canvas.redraw_canvas() instead
         # Boxes cannot redraw themselves without access to current zoom/pan
         pass
+    
+    def set_select(self, selected):
+        """Set selection state and store it."""
+        self.selected = selected
     
     def contains(self, x, y):
         """Check if point is inside this box (model coordinates)."""
@@ -395,10 +416,17 @@ class LayoutEditor:
             if len(command) > 25:
                 command = command[:22] + "..."
             
+            # Determine color and footer based on modifiers
+            color = "#81ff83"  # Default green
+            footer = ""
+            if control.get("modifiers"):
+                color = "#ff4444"  # Red for modifier controls
+                footer = control.get("modifier_text", "")
+            
             box = ControlBox(
                 self.canvas, x, y, width=100, height=60,
-                text=button_name, subtitle=command,
-                control_key=control["key"]
+                text=button_name, subtitle=command, footer=footer,
+                control_key=control["key"], color=color
             )
             self.boxes.append(box)
         
