@@ -350,7 +350,22 @@ class LayoutEditor:
         scrollbar.config(command=self.properties_canvas.yview)
         
         self.properties_inner = ttk.Frame(self.properties_canvas)
-        self.properties_canvas.create_window((0, 0), window=self.properties_inner, anchor=tk.NW)
+        self.canvas_window = self.properties_canvas.create_window((0, 0), window=self.properties_inner, anchor=tk.NW)
+        
+        # Bind canvas resize to update inner frame width
+        def on_canvas_configure(event):
+            self.properties_canvas.itemconfig(self.canvas_window, width=event.width)
+        
+        self.properties_canvas.bind("<Configure>", on_canvas_configure)
+        
+        # Enable mousewheel scrolling on properties canvas
+        def on_properties_mousewheel(event):
+            delta = -1 if event.delta > 0 else 1
+            self.properties_canvas.yview_scroll(delta, "units")
+        
+        self.properties_canvas.bind("<MouseWheel>", on_properties_mousewheel)
+        self.properties_canvas.bind("<Button-4>", lambda e: self.properties_canvas.yview_scroll(-1, "units"))
+        self.properties_canvas.bind("<Button-5>", lambda e: self.properties_canvas.yview_scroll(1, "units"))
         
         # Bind events
         self.canvas.bind("<MouseWheel>", self.on_mousewheel)
