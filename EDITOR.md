@@ -5,13 +5,15 @@ A fully interactive editor for creating custom HOTAS device layouts with visual 
 ## Features
 
 ✅ **Image Upload** - Load device photos/templates  
-✅ **DCS HTML Import** - Parse DCS control exports  
+✅ **DCS HTML Import** - Parse DCS control exports (shows button + command)  
+✅ **Custom Boxes** - Insert boxes with any text/properties  
+✅ **Edit Boxes** - Double-click to edit text, key, position, size  
 ✅ **Draggable Boxes** - Position each control on the layout  
 ✅ **Resizable Boxes** - Adjust box sizes to fit  
 ✅ **Multi-Select** - Drag multiple boxes together with Ctrl+click  
-✅ **Color Customization** - Right-click boxes for color picker  
+✅ **Color Customization** - Right-click for instant color picker at mouse  
 ✅ **Connection Lines** - Draw lines with waypoints to show relationships  
-✅ **Zoom/Pan** - Mouse wheel to zoom, drag to pan  
+✅ **Zoom/Pan** - Mouse wheel to zoom, Figma-style middle-mouse/space pan  
 ✅ **JSON Save** - Save layout configuration  
 ✅ **PNG Export** - Export final layout as image
 
@@ -36,12 +38,27 @@ python editor.py
 2. Click **"Load HTML"**
 3. Select the exported HTML file
 4. Control boxes automatically appear in a grid layout
+5. Each box shows: **Button name: Command description** (e.g., "BTN1: Trigger Down")
 
-### 3. Position Controls
+### 3. Edit/Create Boxes
+
+**Edit Existing Boxes:**
+- **Double-click** any box to edit:
+  - Text displayed in box
+  - Control key identifier
+  - Position (x, y)
+  - Size (width, height)
+
+**Insert Custom Boxes:**
+- Click **"Insert Box"** button
+- Enter properties in dialog
+- Custom box appears at specified location
+
+### 4. Position Controls
 
 **Drag Boxes:**
 - Click and drag any box to move it
-- Boxes show button/control name inside
+- Boxes show button/control name and command inside
 
 **Resize Boxes:**
 - Click and drag the **bottom-right corner** of a box to resize
@@ -50,17 +67,17 @@ python editor.py
 - Hold **Ctrl** and click boxes to select multiple
 - Drag one selected box to move all selected boxes together
 
-### 4. Customize Colors
+### 5. Customize Colors
 
-1. **Right-click** a box
+1. **Right-click** a box → color picker opens at mouse position
 2. Click a color in the popup palette
-3. Box color updates instantly
+3. Box color updates instantly and picker closes
 
 **Available Colors:**
 - Greens, Yellows, Reds, Blues
 - Plus whites, blacks, grays
 
-### 5. Draw Connection Lines (Optional)
+### 6. Draw Connection Lines (Optional)
 
 1. Click **"Draw Line"**
 2. **Left-click** on the image where line should start
@@ -68,7 +85,7 @@ python editor.py
 4. **Left-click** to end the line
 5. Line is drawn with red segments connecting all waypoints
 
-### 6. Save & Export
+### 7. Save & Export
 
 **Save Layout (JSON):**
 - Click **"Save Layout"**
@@ -126,21 +143,36 @@ layouts/
 | **Pan Canvas** | Space + Click + Drag (Figma-style) |
 | **Drag Box** | Click + Drag |
 | **Resize Box** | Click corner + Drag |
+| **Edit Box** | Double-click box |
 | **Select Multiple** | Ctrl + Click boxes |
 | **Drag Multiple** | Drag any selected box |
-| **Change Color** | Right-click box |
+| **Change Color** | Right-click box (opens at mouse) |
 | **Draw Line** | Click "Draw Line" button |
 
-## Line Drawing Mode
+## Editing Boxes
 
-Once in line drawing mode:
+### Double-Click to Edit
 
-1. **Start Line:** Left-click on image
-2. **Add Waypoint:** Right-click to create corner
-3. **End Line:** Left-click to finalize
-4. Each segment draws automatically
+Any box can be edited by double-clicking:
 
-Lines are drawn in red and persist on canvas.
+1. **Text** - What appears inside the box
+2. **Control Key** - Identifier for this control (e.g., "JOY_BTN1", "MY_CUSTOM")
+3. **Position** - X and Y coordinates
+4. **Size** - Width and height
+
+Changes apply immediately when you click "Save".
+
+### Insert Custom Boxes
+
+Click **"Insert Box"** to create boxes from scratch:
+
+1. Enter box text (what appears inside)
+2. Enter control key (for JSON storage)
+3. Specify position (X, Y)
+4. Specify size (Width, Height)
+5. Click "Create"
+
+Custom boxes work exactly like imported boxes—draggable, resizable, colorable.
 
 ## Tips
 

@@ -68,11 +68,15 @@ def parse_html(html_path):
         for binding in combo.split(";"):
             parts = re.split(r"\s+-\s+", binding.strip())
             if parts and parts[-1]:
+                button_name = parts[-1]
+                # Combine button name with command (abbreviated)
+                display_text = f"{button_name}: {command[:20]}" if command else button_name
                 controls.append({
-                    "key": parts[-1],
+                    "key": button_name,
                     "modifiers": parts[:-1],
                     "command": command,
-                    "category": category
+                    "category": category,
+                    "display_text": display_text
                 })
     
     return controls
@@ -192,6 +196,7 @@ class LayoutEditor:
         
         ttk.Button(toolbar, text="Load Image", command=self.load_image).pack(side=tk.LEFT, padx=2)
         ttk.Button(toolbar, text="Load HTML", command=self.load_html).pack(side=tk.LEFT, padx=2)
+        ttk.Button(toolbar, text="Insert Box", command=self.insert_custom_box).pack(side=tk.LEFT, padx=2)
         ttk.Button(toolbar, text="Draw Line", command=self.start_line_mode).pack(side=tk.LEFT, padx=2)
         ttk.Button(toolbar, text="Save Layout", command=self.save_layout).pack(side=tk.LEFT, padx=2)
         ttk.Button(toolbar, text="Export PNG", command=self.export_png).pack(side=tk.LEFT, padx=2)
@@ -214,6 +219,7 @@ class LayoutEditor:
         self.canvas.bind("<ButtonRelease-2>", self.on_canvas_middle_up)
         self.canvas.bind("<Button-3>", self.on_canvas_right_click)
         self.canvas.bind("<B1-Motion>", self.on_canvas_drag)
+        self.canvas.bind("<Double-Button-1>", self.on_canvas_double_click)
         self.canvas.bind("<ButtonRelease-1>", self.on_canvas_release)
         self.canvas.bind("<Control-Button-1>", self.on_canvas_ctrl_click)
         self.canvas.bind("<KeyPress-space>", self.on_space_press)
@@ -280,8 +286,8 @@ class LayoutEditor:
             x = 100 + col * 150
             y = 200 + row * 80
             
-            # Extract button number from key (e.g., JOY_BTN1 -> 1)
-            text = control["key"].replace("JOY_BTN", "").replace("JOY_", "")
+            # Use display_text which includes button + command
+            text = control.get("display_text", control["key"])
             box = ControlBox(self.canvas, x, y, text=text, control_key=control["key"])
             self.boxes.append(box)
         
@@ -430,7 +436,7 @@ class LayoutEditor:
             box.set_select(box in self.selected_boxes)
     
     def show_color_picker(self, box, x, y):
-        """Show color palette popup."""
+        """Show color palette popup at mouse position."""
         colors = [
             "#81ff83", "#fff1a0", "#ff858b", "#83c8f2", "#baff85",
             "#ffb28a", "#ff6b73", "#4df500", "#83ffff", "#d585ee",
@@ -441,14 +447,146 @@ class LayoutEditor:
         popup.geometry("200x200")
         popup.title("Color Palette")
         
+        # Position popup at mouse location
+        popup.geometry(f"200x200+{x}+{y}")
+        
+        def pick_color(c):
+            box.set_color(c)
+            popup.destroy()
+        
         for i, color in enumerate(colors):
             row = i // 3
             col = i % 3
             btn = tk.Button(
                 popup, bg=color, height=2, width=6,
-                command=lambda c=color: [box.set_color(c), popup.destroy()]
+                command=lambda c=color: pick_color(c)
             )
             btn.grid(row=row, column=col, padx=2, pady=2)
+        
+        # Focus popup so it gets destroyed when clicking outside
+        popup.focus_set()
+    
+    def insert_custom_box(self):
+        """Insert a custom box."""
+        # Create dialog for box properties
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Insert Custom Box")
+        dialog.geometry("300x250")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        tk.Label(dialog, text="Box Text:").grid(row=0, column=0, padx=10, pady=5, sticky="w")
+        text_var = tk.StringVar(value="New Box")
+        text_entry = tk.Entry(dialog, textvariable=text_var, width=20)
+        text_entry.grid(row=0, column=1, padx=10, pady=5)
+        
+        tk.Label(dialog, text="Control Key:").grid(row=1, column=0, padx=10, pady=5, sticky="w")
+        key_var = tk.StringVar(value="CUSTOM_1")
+        key_entry = tk.Entry(dialog, textvariable=key_var, width=20)
+        key_entry.grid(row=1, column=1, padx=10, pady=5)
+        
+        tk.Label(dialog, text="X Position:").grid(row=2, column=0, padx=10, pady=5, sticky="w")
+        x_var = tk.StringVar(value="100")
+        x_entry = tk.Entry(dialog, textvariable=x_var, width=20)
+        x_entry.grid(row=2, column=1, padx=10, pady=5)
+        
+        tk.Label(dialog, text="Y Position:").grid(row=3, column=0, padx=10, pady=5, sticky="w")
+        y_var = tk.StringVar(value="100")
+        y_entry = tk.Entry(dialog, textvariable=y_var, width=20)
+        y_entry.grid(row=3, column=1, padx=10, pady=5)
+        
+        tk.Label(dialog, text="Width:").grid(row=4, column=0, padx=10, pady=5, sticky="w")
+        w_var = tk.StringVar(value="80")
+        w_entry = tk.Entry(dialog, textvariable=w_var, width=20)
+        w_entry.grid(row=4, column=1, padx=10, pady=5)
+        
+        tk.Label(dialog, text="Height:").grid(row=5, column=0, padx=10, pady=5, sticky="w")
+        h_var = tk.StringVar(value="40")
+        h_entry = tk.Entry(dialog, textvariable=h_var, width=20)
+        h_entry.grid(row=5, column=1, padx=10, pady=5)
+        
+        def create_box():
+            try:
+                box = ControlBox(
+                    self.canvas, 
+                    int(x_var.get()), 
+                    int(y_var.get()),
+                    width=int(w_var.get()),
+                    height=int(h_var.get()),
+                    text=text_var.get(),
+                    control_key=key_var.get(),
+                    color="#81ff83"
+                )
+                self.boxes.append(box)
+                self.redraw_canvas()
+                dialog.destroy()
+                self.status.config(text="Custom box inserted")
+            except ValueError:
+                messagebox.showerror("Error", "Invalid numeric values")
+        
+        ttk.Button(dialog, text="Create", command=create_box).grid(row=6, column=0, columnspan=2, pady=20)
+    
+    def on_canvas_double_click(self, event):
+        """Handle double-click to edit box."""
+        for box in self.boxes:
+            if box.contains(event.x, event.y):
+                self.edit_box(box)
+                return
+    
+    def edit_box(self, box):
+        """Edit a box's properties."""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Edit Box")
+        dialog.geometry("300x250")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        tk.Label(dialog, text="Box Text:").grid(row=0, column=0, padx=10, pady=5, sticky="w")
+        text_var = tk.StringVar(value=box.text)
+        text_entry = tk.Entry(dialog, textvariable=text_var, width=20)
+        text_entry.grid(row=0, column=1, padx=10, pady=5)
+        
+        tk.Label(dialog, text="Control Key:").grid(row=1, column=0, padx=10, pady=5, sticky="w")
+        key_var = tk.StringVar(value=box.control_key)
+        key_entry = tk.Entry(dialog, textvariable=key_var, width=20)
+        key_entry.grid(row=1, column=1, padx=10, pady=5)
+        
+        tk.Label(dialog, text="X Position:").grid(row=2, column=0, padx=10, pady=5, sticky="w")
+        x_var = tk.StringVar(value=str(int(box.x)))
+        x_entry = tk.Entry(dialog, textvariable=x_var, width=20)
+        x_entry.grid(row=2, column=1, padx=10, pady=5)
+        
+        tk.Label(dialog, text="Y Position:").grid(row=3, column=0, padx=10, pady=5, sticky="w")
+        y_var = tk.StringVar(value=str(int(box.y)))
+        y_entry = tk.Entry(dialog, textvariable=y_var, width=20)
+        y_entry.grid(row=3, column=1, padx=10, pady=5)
+        
+        tk.Label(dialog, text="Width:").grid(row=4, column=0, padx=10, pady=5, sticky="w")
+        w_var = tk.StringVar(value=str(int(box.width)))
+        w_entry = tk.Entry(dialog, textvariable=w_var, width=20)
+        w_entry.grid(row=4, column=1, padx=10, pady=5)
+        
+        tk.Label(dialog, text="Height:").grid(row=5, column=0, padx=10, pady=5, sticky="w")
+        h_var = tk.StringVar(value=str(int(box.height)))
+        h_entry = tk.Entry(dialog, textvariable=h_var, width=20)
+        h_entry.grid(row=5, column=1, padx=10, pady=5)
+        
+        def save_changes():
+            try:
+                box.text = text_var.get()
+                box.control_key = key_var.get()
+                box.x = int(x_var.get())
+                box.y = int(y_var.get())
+                box.width = int(w_var.get())
+                box.height = int(h_var.get())
+                box.redraw()
+                self.redraw_canvas()
+                dialog.destroy()
+                self.status.config(text="Box edited")
+            except ValueError:
+                messagebox.showerror("Error", "Invalid numeric values")
+        
+        ttk.Button(dialog, text="Save", command=save_changes).grid(row=6, column=0, columnspan=2, pady=20)
     
     def start_line_mode(self):
         """Start line drawing mode."""

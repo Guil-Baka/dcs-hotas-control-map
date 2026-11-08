@@ -11,7 +11,8 @@ python editor.py
 | Button | Action |
 |--------|--------|
 | **Load Image** | Select device template image (PNG/JPG) + enter device name |
-| **Load HTML** | Import DCS control export (creates control boxes) |
+| **Load HTML** | Import DCS control export (creates control boxes with button + command) |
+| **Insert Box** | Create a custom box with any text/properties |
 | **Draw Line** | Enter line-drawing mode |
 | **Save Layout** | Save positions + colors as `layout.json` |
 | **Export PNG** | Export diagram as `layout.png` |
@@ -22,9 +23,10 @@ python editor.py
 | Action | Result |
 |--------|--------|
 | Click + Drag | Move single box |
+| Double-Click | Edit box text, key, position, size |
 | Ctrl + Click + Drag | Move multiple selected boxes |
 | Click corner + Drag | Resize box (corner = bottom-right) |
-| Right-Click | Show color picker |
+| Right-Click | Show color picker at mouse position |
 
 ### Zoom & Pan
 | Action | Result |
@@ -51,17 +53,17 @@ python editor.py
 2. Import Controls
    ├─ Click "Load HTML"
    ├─ Select DCS export HTML
-   └─ Control boxes appear in grid
+   └─ Control boxes appear in grid (shows button + command)
 
-3. Position Boxes
+3. Edit/Create Boxes
+   ├─ Double-Click a box to edit text, key, position, size
+   ├─ Click "Insert Box" to create custom boxes
+   └─ Right-Click to change color instantly
+
+4. Position Boxes
    ├─ Drag boxes to match button positions
    ├─ Resize to match button sizes
    └─ Use Ctrl+Click to move multiple boxes
-
-4. Customize Colors
-   ├─ Right-Click a box
-   ├─ Click color in popup
-   └─ Repeat for all boxes
 
 5. Draw Lines (Optional)
    ├─ Click "Draw Line"
@@ -80,6 +82,20 @@ Currently: None (can be added)
 
 ## Tips & Tricks
 
+**Edit Box Properties:**
+```
+1. Double-Click any box
+2. Edit: text, control key, position, width, height
+3. Click "Save" to apply
+```
+
+**Insert Custom Boxes:**
+```
+1. Click "Insert Box" button
+2. Enter text and properties
+3. Box appears at specified position
+```
+
 **Multi-Select Dragging:**
 ```
 1. Ctrl + Click box 1
@@ -87,6 +103,11 @@ Currently: None (can be added)
 3. Ctrl + Click box 3
 4. Click + Drag any selected box → all move together
 ```
+
+**Change Colors:**
+- Right-click box → color picker opens at mouse
+- Click color → instantly applied
+- Picker closes after selection
 
 **Resizing Multiple Boxes:**
 - Select multiple boxes → drag ONE corner → only that box resizes
