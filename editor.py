@@ -85,13 +85,14 @@ def parse_html(html_path):
 class ControlBox:
     """Represents a draggable/resizable control box on the canvas."""
     
-    def __init__(self, canvas, x, y, width=80, height=40, text="", control_key="", color="#81ff83"):
+    def __init__(self, canvas, x, y, width=80, height=40, text="", subtitle="", control_key="", color="#81ff83"):
         self.canvas = canvas
         self.x = x
         self.y = y
         self.width = width
         self.height = height
-        self.text = text
+        self.text = text  # Title (button name)
+        self.subtitle = subtitle  # Subtitle (function/command)
         self.control_key = control_key
         self.color = color
         self.selected = False
@@ -99,11 +100,12 @@ class ControlBox:
         self.line_waypoints = []
         self.rect_id = None
         self.text_id = None
+        self.subtitle_id = None
         
         self.draw()
     
     def draw(self):
-        """Draw the box and text on canvas."""
+        """Draw the box, title, and subtitle on canvas."""
         outline = "#ff0000" if self.selected else "#333333"
         width = 3 if self.selected else 1
         
@@ -112,11 +114,20 @@ class ControlBox:
             fill=self.color, outline=outline, width=width, tags=f"box_{id(self)}"
         )
         
+        # Title text (larger, bold)
         self.text_id = self.canvas.create_text(
-            self.x + self.width / 2, self.y + self.height / 2,
-            text=self.text, fill="black", font=("Arial", 10, "bold"),
+            self.x + self.width / 2, self.y + self.height / 3,
+            text=self.text, fill="black", font=("Arial", 9, "bold"),
             tags=f"text_{id(self)}"
         )
+        
+        # Subtitle text (smaller, regular)
+        if self.subtitle:
+            self.subtitle_id = self.canvas.create_text(
+                self.x + self.width / 2, self.y + 2 * self.height / 3,
+                text=self.subtitle, fill="#333333", font=("Arial", 7),
+                tags=f"subtitle_{id(self)}"
+            )
     
     def redraw(self):
         """Redraw the box (used after changes)."""
@@ -124,6 +135,8 @@ class ControlBox:
             self.canvas.delete(self.rect_id)
         if self.text_id:
             self.canvas.delete(self.text_id)
+        if self.subtitle_id:
+            self.canvas.delete(self.subtitle_id)
         self.draw()
     
     def contains(self, x, y):
@@ -165,7 +178,7 @@ class LayoutEditor:
     def __init__(self, root):
         self.root = root
         self.root.title("HOTAS Layout Editor")
-        self.root.geometry("1400x900")
+        self.root.geometry("1600x900")
         
         self.device_name = None
         self.image = None
@@ -179,8 +192,10 @@ class LayoutEditor:
         self.line_start = None
         self.line_waypoints = []
         self.selected_boxes = []
+        self.selected_box = None  # Current box being edited in sidebar
         self.dragging_box = None
         self.resizing_box = None
+        self.resize_edge = None  # 'left', 'right', 'top', 'bottom', 'corner'
         self.last_mouse_x = 0
         self.last_mouse_y = 0
         self.panning = False
@@ -189,7 +204,7 @@ class LayoutEditor:
         self.setup_ui()
     
     def setup_ui(self):
-        """Setup UI layout."""
+        """Setup UI layout with canvas and sidebar."""
         # Top toolbar
         toolbar = ttk.Frame(self.root)
         toolbar.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
@@ -205,16 +220,41 @@ class LayoutEditor:
         self.zoom_label = ttk.Label(toolbar, text="100%")
         self.zoom_label.pack(side=tk.LEFT, padx=2)
         
+        # Main container
+        main_container = ttk.Frame(self.root)
+        main_container.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
         # Canvas
-        self.canvas = tk.Canvas(self.root, bg="white", cursor="cross")
-        self.canvas.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.canvas = tk.Canvas(main_container, bg="white", cursor="cross")
+        self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        # Sidebar
+        sidebar = ttk.Frame(main_container, width=250)
+        sidebar.pack(side=tk.RIGHT, fill=tk.BOTH, padx=(5, 0))
+        sidebar.pack_propagate(False)
+        
+        ttk.Label(sidebar, text="Properties", font=("Arial", 12, "bold")).pack(pady=10)
+        
+        # Properties frame with scrollbar
+        properties_frame = ttk.Frame(sidebar)
+        properties_frame.pack(fill=tk.BOTH, expand=True)
+        
+        scrollbar = ttk.Scrollbar(properties_frame)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        self.properties_canvas = tk.Canvas(properties_frame, bg="white", highlightthickness=0, yscrollcommand=scrollbar.set)
+        self.properties_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.config(command=self.properties_canvas.yview)
+        
+        self.properties_inner = ttk.Frame(self.properties_canvas)
+        self.properties_canvas.create_window((0, 0), window=self.properties_inner, anchor=tk.NW)
         
         # Bind events
         self.canvas.bind("<MouseWheel>", self.on_mousewheel)
-        self.canvas.bind("<Button-4>", self.on_mousewheel)  # Linux scroll up
-        self.canvas.bind("<Button-5>", self.on_mousewheel)  # Linux scroll down
+        self.canvas.bind("<Button-4>", self.on_mousewheel)
+        self.canvas.bind("<Button-5>", self.on_mousewheel)
         self.canvas.bind("<Button-1>", self.on_canvas_left_click)
-        self.canvas.bind("<Button-2>", self.on_canvas_middle_down)  # Middle mouse
+        self.canvas.bind("<Button-2>", self.on_canvas_middle_down)
         self.canvas.bind("<B2-Motion>", self.on_canvas_pan_drag)
         self.canvas.bind("<ButtonRelease-2>", self.on_canvas_middle_up)
         self.canvas.bind("<Button-3>", self.on_canvas_right_click)
@@ -286,9 +326,18 @@ class LayoutEditor:
             x = 100 + col * 150
             y = 200 + row * 80
             
-            # Use display_text which includes button + command
-            text = control.get("display_text", control["key"])
-            box = ControlBox(self.canvas, x, y, text=text, control_key=control["key"])
+            # Extract button name and command
+            button_name = control["key"].replace("JOY_BTN", "").replace("JOY_", "")
+            command = control.get("command", "")
+            # Abbreviate command if too long
+            if len(command) > 25:
+                command = command[:22] + "..."
+            
+            box = ControlBox(
+                self.canvas, x, y, width=100, height=60,
+                text=button_name, subtitle=command,
+                control_key=control["key"]
+            )
             self.boxes.append(box)
         
         self.redraw_canvas()
@@ -316,7 +365,7 @@ class LayoutEditor:
         self.redraw_canvas()
     
     def on_canvas_left_click(self, event):
-        """Handle left click."""
+        """Handle left click - select or resize."""
         if self.drawing_line:
             self.handle_line_click(event, is_right=False)
             return
@@ -328,16 +377,43 @@ class LayoutEditor:
                 self.last_mouse_x = event.x
                 self.last_mouse_y = event.y
                 
-                # Check if near corner for resize
-                if (abs(event.x - (box.x + box.width)) < 10 and
-                    abs(event.y - (box.y + box.height)) < 10):
+                # Detect which edge/corner is being dragged (10px tolerance)
+                edge = self.get_resize_edge(box, event.x, event.y)
+                if edge:
                     self.resizing_box = box
+                    self.resize_edge = edge
                 
+                # Select box for sidebar
+                self.selected_box = box
+                self.update_sidebar()
+                self.redraw_boxes()
                 return
         
-        # No box clicked - start selection
+        # No box clicked - deselect
         self.selected_boxes = []
+        self.selected_box = None
+        self.update_sidebar()
         self.redraw_boxes()
+    
+    def get_resize_edge(self, box, x, y):
+        """Detect which edge/corner the click is near. Returns 'top', 'bottom', 'left', 'right', or 'corner'."""
+        tolerance = 8
+        left = abs(x - box.x) < tolerance
+        right = abs(x - (box.x + box.width)) < tolerance
+        top = abs(y - box.y) < tolerance
+        bottom = abs(y - (box.y + box.height)) < tolerance
+        
+        if (left or right) and (top or bottom):
+            return "corner"
+        elif top:
+            return "top"
+        elif bottom:
+            return "bottom"
+        elif left:
+            return "left"
+        elif right:
+            return "right"
+        return None
     
     def on_canvas_middle_down(self, event):
         """Handle middle mouse button down - start panning."""
@@ -396,7 +472,7 @@ class LayoutEditor:
                 return
     
     def on_canvas_drag(self, event):
-        """Handle drag."""
+        """Handle drag - move or resize with edges."""
         # If space is pressed, pan instead
         if self.space_pressed:
             dx = event.x - self.last_mouse_x
@@ -412,8 +488,28 @@ class LayoutEditor:
             dx = event.x - self.last_mouse_x
             dy = event.y - self.last_mouse_y
             
-            if self.resizing_box:
-                self.resizing_box.resize(dx, dy)
+            if self.resizing_box and self.resize_edge:
+                # Resize based on which edge(s) are being dragged
+                edge = self.resize_edge
+                box = self.resizing_box
+                
+                if edge == "corner":
+                    # Bottom-right corner
+                    box.width = max(40, box.width + dx)
+                    box.height = max(20, box.height + dy)
+                elif edge == "bottom":
+                    box.height = max(20, box.height + dy)
+                elif edge == "right":
+                    box.width = max(40, box.width + dx)
+                elif edge == "top":
+                    box.y += dy
+                    box.height = max(20, box.height - dy)
+                elif edge == "left":
+                    box.x += dx
+                    box.width = max(40, box.width - dx)
+                
+                box.redraw()
+                self.update_sidebar()
             else:
                 # Drag selected boxes
                 if self.dragging_box not in self.selected_boxes:
@@ -421,14 +517,18 @@ class LayoutEditor:
                 
                 for box in self.selected_boxes:
                     box.move(dx, dy)
+                
+                self.update_sidebar()
             
             self.last_mouse_x = event.x
             self.last_mouse_y = event.y
+            self.redraw_canvas()
     
     def on_canvas_release(self, event):
         """Handle release."""
         self.dragging_box = None
         self.resizing_box = None
+        self.resize_edge = None
     
     def redraw_boxes(self):
         """Redraw all boxes with selection states."""
@@ -466,44 +566,185 @@ class LayoutEditor:
         # Focus popup so it gets destroyed when clicking outside
         popup.focus_set()
     
+    def update_sidebar(self):
+        """Update sidebar with selected box properties."""
+        # Clear previous content
+        for widget in self.properties_inner.winfo_children():
+            widget.destroy()
+        
+        if not self.selected_box:
+            ttk.Label(self.properties_inner, text="No box selected", foreground="gray").pack(pady=20)
+            self.properties_canvas.configure(scrollregion=self.properties_canvas.bbox("all"))
+            return
+        
+        box = self.selected_box
+        
+        # Title property
+        ttk.Label(self.properties_inner, text="Title (Button)", font=("Arial", 10, "bold")).pack(anchor="w", padx=10, pady=(10, 5))
+        text_var = tk.StringVar(value=box.text)
+        text_entry = ttk.Entry(self.properties_inner, textvariable=text_var, width=25)
+        text_entry.pack(padx=10, pady=5, fill=tk.X)
+        
+        def on_text_change(*args):
+            box.text = text_var.get()
+            box.redraw()
+            self.redraw_canvas()
+        
+        text_var.trace("w", on_text_change)
+        
+        # Subtitle property
+        ttk.Label(self.properties_inner, text="Subtitle (Function)", font=("Arial", 10, "bold")).pack(anchor="w", padx=10, pady=(10, 5))
+        subtitle_var = tk.StringVar(value=box.subtitle)
+        subtitle_entry = ttk.Entry(self.properties_inner, textvariable=subtitle_var, width=25)
+        subtitle_entry.pack(padx=10, pady=5, fill=tk.X)
+        
+        def on_subtitle_change(*args):
+            box.subtitle = subtitle_var.get()
+            box.redraw()
+            self.redraw_canvas()
+        
+        subtitle_var.trace("w", on_subtitle_change)
+        
+        # Control Key property
+        ttk.Label(self.properties_inner, text="Control Key", font=("Arial", 10, "bold")).pack(anchor="w", padx=10, pady=(10, 5))
+        key_var = tk.StringVar(value=box.control_key)
+        key_entry = ttk.Entry(self.properties_inner, textvariable=key_var, width=25)
+        key_entry.pack(padx=10, pady=5, fill=tk.X)
+        
+        def on_key_change(*args):
+            box.control_key = key_var.get()
+        
+        key_var.trace("w", on_key_change)
+        
+        # Position section
+        ttk.Label(self.properties_inner, text="Position", font=("Arial", 10, "bold")).pack(anchor="w", padx=10, pady=(15, 5))
+        
+        # X position
+        ttk.Label(self.properties_inner, text="X:").pack(anchor="w", padx=10)
+        x_var = tk.StringVar(value=str(int(box.x)))
+        x_entry = ttk.Entry(self.properties_inner, textvariable=x_var, width=25)
+        x_entry.pack(padx=10, pady=2, fill=tk.X)
+        
+        def on_x_change(*args):
+            try:
+                box.x = float(x_var.get())
+                box.redraw()
+                self.redraw_canvas()
+            except ValueError:
+                pass
+        
+        x_var.trace("w", on_x_change)
+        
+        # Y position
+        ttk.Label(self.properties_inner, text="Y:").pack(anchor="w", padx=10)
+        y_var = tk.StringVar(value=str(int(box.y)))
+        y_entry = ttk.Entry(self.properties_inner, textvariable=y_var, width=25)
+        y_entry.pack(padx=10, pady=2, fill=tk.X)
+        
+        def on_y_change(*args):
+            try:
+                box.y = float(y_var.get())
+                box.redraw()
+                self.redraw_canvas()
+            except ValueError:
+                pass
+        
+        y_var.trace("w", on_y_change)
+        
+        # Size section
+        ttk.Label(self.properties_inner, text="Size", font=("Arial", 10, "bold")).pack(anchor="w", padx=10, pady=(15, 5))
+        
+        # Width
+        ttk.Label(self.properties_inner, text="Width:").pack(anchor="w", padx=10)
+        w_var = tk.StringVar(value=str(int(box.width)))
+        w_entry = ttk.Entry(self.properties_inner, textvariable=w_var, width=25)
+        w_entry.pack(padx=10, pady=2, fill=tk.X)
+        
+        def on_width_change(*args):
+            try:
+                box.width = max(40, float(w_var.get()))
+                w_var.set(str(int(box.width)))
+                box.redraw()
+                self.redraw_canvas()
+            except ValueError:
+                pass
+        
+        w_var.trace("w", on_width_change)
+        
+        # Height
+        ttk.Label(self.properties_inner, text="Height:").pack(anchor="w", padx=10)
+        h_var = tk.StringVar(value=str(int(box.height)))
+        h_entry = ttk.Entry(self.properties_inner, textvariable=h_var, width=25)
+        h_entry.pack(padx=10, pady=2, fill=tk.X)
+        
+        def on_height_change(*args):
+            try:
+                box.height = max(20, float(h_var.get()))
+                h_var.set(str(int(box.height)))
+                box.redraw()
+                self.redraw_canvas()
+            except ValueError:
+                pass
+        
+        h_var.trace("w", on_height_change)
+        
+        # Color section
+        ttk.Label(self.properties_inner, text="Color", font=("Arial", 10, "bold")).pack(anchor="w", padx=10, pady=(15, 5))
+        
+        def on_color_click():
+            self.show_color_picker(box, 0, 0)
+        
+        color_btn = tk.Button(self.properties_inner, bg=box.color, text="Change Color", 
+                               command=on_color_click, width=20, height=2)
+        color_btn.pack(padx=10, pady=5)
+        
+        # Update scroll region
+        self.properties_inner.update_idletasks()
+        self.properties_canvas.configure(scrollregion=self.properties_canvas.bbox("all"))
+    
     def insert_custom_box(self):
         """Insert a custom box."""
         # Create dialog for box properties
         dialog = tk.Toplevel(self.root)
         dialog.title("Insert Custom Box")
-        dialog.geometry("300x250")
+        dialog.geometry("300x350")
         dialog.transient(self.root)
         dialog.grab_set()
         
-        tk.Label(dialog, text="Box Text:").grid(row=0, column=0, padx=10, pady=5, sticky="w")
-        text_var = tk.StringVar(value="New Box")
+        tk.Label(dialog, text="Title (Button):").grid(row=0, column=0, padx=10, pady=5, sticky="w")
+        text_var = tk.StringVar(value="Button")
         text_entry = tk.Entry(dialog, textvariable=text_var, width=20)
         text_entry.grid(row=0, column=1, padx=10, pady=5)
         
-        tk.Label(dialog, text="Control Key:").grid(row=1, column=0, padx=10, pady=5, sticky="w")
+        tk.Label(dialog, text="Subtitle (Function):").grid(row=1, column=0, padx=10, pady=5, sticky="w")
+        subtitle_var = tk.StringVar(value="")
+        subtitle_entry = tk.Entry(dialog, textvariable=subtitle_var, width=20)
+        subtitle_entry.grid(row=1, column=1, padx=10, pady=5)
+        
+        tk.Label(dialog, text="Control Key:").grid(row=2, column=0, padx=10, pady=5, sticky="w")
         key_var = tk.StringVar(value="CUSTOM_1")
         key_entry = tk.Entry(dialog, textvariable=key_var, width=20)
-        key_entry.grid(row=1, column=1, padx=10, pady=5)
+        key_entry.grid(row=2, column=1, padx=10, pady=5)
         
-        tk.Label(dialog, text="X Position:").grid(row=2, column=0, padx=10, pady=5, sticky="w")
+        tk.Label(dialog, text="X Position:").grid(row=3, column=0, padx=10, pady=5, sticky="w")
         x_var = tk.StringVar(value="100")
         x_entry = tk.Entry(dialog, textvariable=x_var, width=20)
-        x_entry.grid(row=2, column=1, padx=10, pady=5)
+        x_entry.grid(row=3, column=1, padx=10, pady=5)
         
-        tk.Label(dialog, text="Y Position:").grid(row=3, column=0, padx=10, pady=5, sticky="w")
+        tk.Label(dialog, text="Y Position:").grid(row=4, column=0, padx=10, pady=5, sticky="w")
         y_var = tk.StringVar(value="100")
         y_entry = tk.Entry(dialog, textvariable=y_var, width=20)
-        y_entry.grid(row=3, column=1, padx=10, pady=5)
+        y_entry.grid(row=4, column=1, padx=10, pady=5)
         
-        tk.Label(dialog, text="Width:").grid(row=4, column=0, padx=10, pady=5, sticky="w")
-        w_var = tk.StringVar(value="80")
+        tk.Label(dialog, text="Width:").grid(row=5, column=0, padx=10, pady=5, sticky="w")
+        w_var = tk.StringVar(value="100")
         w_entry = tk.Entry(dialog, textvariable=w_var, width=20)
-        w_entry.grid(row=4, column=1, padx=10, pady=5)
+        w_entry.grid(row=5, column=1, padx=10, pady=5)
         
-        tk.Label(dialog, text="Height:").grid(row=5, column=0, padx=10, pady=5, sticky="w")
-        h_var = tk.StringVar(value="40")
+        tk.Label(dialog, text="Height:").grid(row=6, column=0, padx=10, pady=5, sticky="w")
+        h_var = tk.StringVar(value="60")
         h_entry = tk.Entry(dialog, textvariable=h_var, width=20)
-        h_entry.grid(row=5, column=1, padx=10, pady=5)
+        h_entry.grid(row=6, column=1, padx=10, pady=5)
         
         def create_box():
             try:
@@ -514,6 +755,7 @@ class LayoutEditor:
                     width=int(w_var.get()),
                     height=int(h_var.get()),
                     text=text_var.get(),
+                    subtitle=subtitle_var.get(),
                     control_key=key_var.get(),
                     color="#81ff83"
                 )
@@ -524,7 +766,7 @@ class LayoutEditor:
             except ValueError:
                 messagebox.showerror("Error", "Invalid numeric values")
         
-        ttk.Button(dialog, text="Create", command=create_box).grid(row=6, column=0, columnspan=2, pady=20)
+        ttk.Button(dialog, text="Create", command=create_box).grid(row=7, column=0, columnspan=2, pady=20)
     
     def on_canvas_double_click(self, event):
         """Handle double-click to edit box."""
@@ -537,43 +779,49 @@ class LayoutEditor:
         """Edit a box's properties."""
         dialog = tk.Toplevel(self.root)
         dialog.title("Edit Box")
-        dialog.geometry("300x250")
+        dialog.geometry("300x350")
         dialog.transient(self.root)
         dialog.grab_set()
         
-        tk.Label(dialog, text="Box Text:").grid(row=0, column=0, padx=10, pady=5, sticky="w")
+        tk.Label(dialog, text="Title (Button):").grid(row=0, column=0, padx=10, pady=5, sticky="w")
         text_var = tk.StringVar(value=box.text)
         text_entry = tk.Entry(dialog, textvariable=text_var, width=20)
         text_entry.grid(row=0, column=1, padx=10, pady=5)
         
-        tk.Label(dialog, text="Control Key:").grid(row=1, column=0, padx=10, pady=5, sticky="w")
+        tk.Label(dialog, text="Subtitle (Function):").grid(row=1, column=0, padx=10, pady=5, sticky="w")
+        subtitle_var = tk.StringVar(value=box.subtitle)
+        subtitle_entry = tk.Entry(dialog, textvariable=subtitle_var, width=20)
+        subtitle_entry.grid(row=1, column=1, padx=10, pady=5)
+        
+        tk.Label(dialog, text="Control Key:").grid(row=2, column=0, padx=10, pady=5, sticky="w")
         key_var = tk.StringVar(value=box.control_key)
         key_entry = tk.Entry(dialog, textvariable=key_var, width=20)
-        key_entry.grid(row=1, column=1, padx=10, pady=5)
+        key_entry.grid(row=2, column=1, padx=10, pady=5)
         
-        tk.Label(dialog, text="X Position:").grid(row=2, column=0, padx=10, pady=5, sticky="w")
+        tk.Label(dialog, text="X Position:").grid(row=3, column=0, padx=10, pady=5, sticky="w")
         x_var = tk.StringVar(value=str(int(box.x)))
         x_entry = tk.Entry(dialog, textvariable=x_var, width=20)
-        x_entry.grid(row=2, column=1, padx=10, pady=5)
+        x_entry.grid(row=3, column=1, padx=10, pady=5)
         
-        tk.Label(dialog, text="Y Position:").grid(row=3, column=0, padx=10, pady=5, sticky="w")
+        tk.Label(dialog, text="Y Position:").grid(row=4, column=0, padx=10, pady=5, sticky="w")
         y_var = tk.StringVar(value=str(int(box.y)))
         y_entry = tk.Entry(dialog, textvariable=y_var, width=20)
-        y_entry.grid(row=3, column=1, padx=10, pady=5)
+        y_entry.grid(row=4, column=1, padx=10, pady=5)
         
-        tk.Label(dialog, text="Width:").grid(row=4, column=0, padx=10, pady=5, sticky="w")
+        tk.Label(dialog, text="Width:").grid(row=5, column=0, padx=10, pady=5, sticky="w")
         w_var = tk.StringVar(value=str(int(box.width)))
         w_entry = tk.Entry(dialog, textvariable=w_var, width=20)
-        w_entry.grid(row=4, column=1, padx=10, pady=5)
+        w_entry.grid(row=5, column=1, padx=10, pady=5)
         
-        tk.Label(dialog, text="Height:").grid(row=5, column=0, padx=10, pady=5, sticky="w")
+        tk.Label(dialog, text="Height:").grid(row=6, column=0, padx=10, pady=5, sticky="w")
         h_var = tk.StringVar(value=str(int(box.height)))
         h_entry = tk.Entry(dialog, textvariable=h_var, width=20)
-        h_entry.grid(row=5, column=1, padx=10, pady=5)
+        h_entry.grid(row=6, column=1, padx=10, pady=5)
         
         def save_changes():
             try:
                 box.text = text_var.get()
+                box.subtitle = subtitle_var.get()
                 box.control_key = key_var.get()
                 box.x = int(x_var.get())
                 box.y = int(y_var.get())
@@ -586,7 +834,7 @@ class LayoutEditor:
             except ValueError:
                 messagebox.showerror("Error", "Invalid numeric values")
         
-        ttk.Button(dialog, text="Save", command=save_changes).grid(row=6, column=0, columnspan=2, pady=20)
+        ttk.Button(dialog, text="Save", command=save_changes).grid(row=7, column=0, columnspan=2, pady=20)
     
     def start_line_mode(self):
         """Start line drawing mode."""
@@ -640,6 +888,7 @@ class LayoutEditor:
                     "width": box.width,
                     "height": box.height,
                     "text": box.text,
+                    "subtitle": box.subtitle,
                     "control_key": box.control_key,
                     "color": box.color
                 }
@@ -670,12 +919,21 @@ class LayoutEditor:
                 [box.x, box.y, box.x + box.width, box.y + box.height],
                 fill=box.color, outline="#333333", width=2
             )
-            # Draw text
+            # Draw title
+            title_y = box.y + box.height / 3
             draw.text(
-                (box.x + box.width / 2, box.y + box.height / 2),
+                (box.x + box.width / 2, title_y),
                 box.text,
-                fill="black", anchor="mm"
+                fill="black", anchor="mm", font=None
             )
+            # Draw subtitle
+            if box.subtitle:
+                subtitle_y = box.y + 2 * box.height / 3
+                draw.text(
+                    (box.x + box.width / 2, subtitle_y),
+                    box.subtitle,
+                    fill="#333333", anchor="mm", font=None
+                )
         
         device_dir = LAYOUTS_DIR / self.device_name
         export_path = device_dir / "layout.png"

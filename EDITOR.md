@@ -1,15 +1,15 @@
 # Interactive HOTAS Layout Editor
 
-A fully interactive editor for creating custom HOTAS device layouts with visual editor, drag-and-drop boxes, and connection lines.
+A fully interactive, Figma-inspired editor for creating custom HOTAS device layouts with visual canvas editing and real-time property sidebar.
 
 ## Features
 
 ✅ **Image Upload** - Load device photos/templates  
 ✅ **DCS HTML Import** - Parse DCS control exports (shows button + command)  
 ✅ **Custom Boxes** - Insert boxes with any text/properties  
-✅ **Edit Boxes** - Double-click to edit text, key, position, size  
+✅ **Figma-Style Editing** - Click box to select, sidebar shows/updates properties in real-time  
+✅ **Advanced Resizing** - Drag from any edge (top, bottom, left, right, corner)  
 ✅ **Draggable Boxes** - Position each control on the layout  
-✅ **Resizable Boxes** - Adjust box sizes to fit  
 ✅ **Multi-Select** - Drag multiple boxes together with Ctrl+click  
 ✅ **Color Customization** - Right-click for instant color picker at mouse  
 ✅ **Connection Lines** - Draw lines with waypoints to show relationships  
@@ -40,14 +40,17 @@ python editor.py
 4. Control boxes automatically appear in a grid layout
 5. Each box shows: **Button name: Command description** (e.g., "BTN1: Trigger Down")
 
-### 3. Edit/Create Boxes
+### 3. Edit/Position with Sidebar
 
-**Edit Existing Boxes:**
-- **Double-click** any box to edit:
-  - Text displayed in box
-  - Control key identifier
-  - Position (x, y)
-  - Size (width, height)
+**Click a box:**
+- Properties panel appears on the right
+- Edit text, position, size, color in real-time
+- Changes apply instantly
+
+**Resize like Figma:**
+- Drag from **any edge**: top, bottom, left, right, or corner
+- Drag from **corners** to resize both dimensions
+- Drag from **edges** to resize one dimension while keeping opposite edge fixed
 
 **Insert Custom Boxes:**
 - Click **"Insert Box"** button
@@ -60,9 +63,6 @@ python editor.py
 - Click and drag any box to move it
 - Boxes show button/control name and command inside
 
-**Resize Boxes:**
-- Click and drag the **bottom-right corner** of a box to resize
-
 **Multi-Select:**
 - Hold **Ctrl** and click boxes to select multiple
 - Drag one selected box to move all selected boxes together
@@ -73,9 +73,9 @@ python editor.py
 2. Click a color in the popup palette
 3. Box color updates instantly and picker closes
 
-**Available Colors:**
-- Greens, Yellows, Reds, Blues
-- Plus whites, blacks, grays
+**Or use sidebar:**
+- Click box to select
+- Click "Change Color" button in sidebar
 
 ### 6. Draw Connection Lines (Optional)
 
@@ -104,7 +104,7 @@ python editor.py
 layouts/
 ├── T.16000M/
 │   ├── image.png          # Original template image
-│   ├── layout.json        # Saved box positions and colors
+│   ├── layout.json        # Saved box positions, colors, text, subtitle
 │   └── layout.png         # Exported final diagram
 └── TWCS_Throttle/
     ├── image.png
@@ -125,7 +125,8 @@ layouts/
       "y": 150,
       "width": 80,
       "height": 40,
-      "text": "1",
+      "text": "Button 1",
+      "subtitle": "Fire Trigger",
       "control_key": "JOY_BTN1",
       "color": "#81ff83"
     }
@@ -133,46 +134,94 @@ layouts/
 }
 ```
 
+## Properties Sidebar
+
+The right sidebar shows the **selected box's properties** and updates in real-time:
+
+### Title (Button)
+- Main button/control name (displayed larger, bold)
+- Updates instantly as you type
+
+### Subtitle (Function)
+- What the button does (displayed smaller, dimmed)
+- Updates instantly as you type
+
+### Control Key
+- Identifier for this control in JSON
+- Used for tracking button bindings
+
+### Position (X, Y)
+- Exact coordinates of top-left corner
+- Edit to move box to precise location
+- Updates as you drag
+
+### Size (Width, Height)
+- Box dimensions
+- Edit to resize to exact size
+- Updates as you drag edges
+
+### Color
+- Shows current color
+- Click "Change Color" to pick new color
+- Also accessible via right-click on canvas
+
 ## Keyboard/Mouse Controls
 
 | Action | Control |
 |--------|---------|
+| **Select Box** | Click on box (properties appear in sidebar) |
+| **Move Box** | Click + Drag (anywhere inside box) |
+| **Resize Box** | Drag from edge or corner |
+| **- Top edge** | Drag top, keeps bottom fixed |
+| **- Bottom edge** | Drag bottom, keeps top fixed |
+| **- Left edge** | Drag left, keeps right fixed |
+| **- Right edge** | Drag right, keeps left fixed |
+| **- Corner** | Drag corner, keeps opposite corner fixed |
+| **Multi-Select** | Ctrl + Click boxes |
+| **Move Multiple** | Drag any selected box |
+| **Change Color** | Right-click box (opens at mouse) |
 | **Zoom In** | Mouse Wheel Up / Scroll Up |
 | **Zoom Out** | Mouse Wheel Down / Scroll Down (min 10%) |
 | **Pan Canvas** | Middle Mouse Drag |
 | **Pan Canvas** | Space + Click + Drag (Figma-style) |
-| **Drag Box** | Click + Drag |
-| **Resize Box** | Click corner + Drag |
-| **Edit Box** | Double-click box |
-| **Select Multiple** | Ctrl + Click boxes |
-| **Drag Multiple** | Drag any selected box |
-| **Change Color** | Right-click box (opens at mouse) |
 | **Draw Line** | Click "Draw Line" button |
 
 ## Editing Boxes
 
-### Double-Click to Edit
+### Select a Box for Editing
 
-Any box can be edited by double-clicking:
+1. **Click any box on the canvas**
+2. Box highlights with red border
+3. Properties panel loads on the right sidebar
+4. All properties update in real-time as you edit or drag
 
-1. **Text** - What appears inside the box
-2. **Control Key** - Identifier for this control (e.g., "JOY_BTN1", "MY_CUSTOM")
-3. **Position** - X and Y coordinates
-4. **Size** - Width and height
+### Edit Properties in Sidebar
 
-Changes apply immediately when you click "Save".
+- **Text** - Change what displays in the box
+- **Control Key** - Identifier for JSON storage
+- **Position (X, Y)** - Pixel coordinates
+- **Size (W, H)** - Box dimensions
+- **Color** - Click button to pick color
 
-### Insert Custom Boxes
+Changes apply **instantly** as you type/drag!
 
-Click **"Insert Box"** to create boxes from scratch:
+### Resize Like Figma
 
-1. Enter box text (what appears inside)
-2. Enter control key (for JSON storage)
-3. Specify position (X, Y)
-4. Specify size (Width, Height)
-5. Click "Create"
+Drag from any edge to resize:
 
-Custom boxes work exactly like imported boxes—draggable, resizable, colorable.
+```
+        ↑ top
+    ┌───────┐
+  ← │       │ →
+    └───────┘
+      ↓ bottom
+
+↙ corner = resize both width & height
+```
+
+- **Edge drag** = resize that dimension only
+- **Corner drag** = resize width & height together
+- Opposite corner stays fixed
 
 ## Tips
 

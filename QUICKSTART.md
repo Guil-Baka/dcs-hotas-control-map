@@ -128,9 +128,28 @@ After saving:
 ```
 layouts/{device_name}/
 ├── image.png       # Original template
-├── layout.json     # Positions + colors (editable)
+├── layout.json     # Positions, colors, titles, subtitles (editable)
 └── layout.png      # Exported diagram (for printing)
 ```
+
+## JSON File Format
+
+Each box in the JSON includes title (button name) and subtitle (function):
+
+```json
+{
+  "text": "Button 1",
+  "subtitle": "Fire Trigger",
+  "control_key": "JOY_BTN1",
+  "x": 100,
+  "y": 150,
+  "width": 80,
+  "height": 40,
+  "color": "#81ff83"
+}
+```
+
+You can edit JSON manually if needed!
 
 ## Troubleshooting
 
