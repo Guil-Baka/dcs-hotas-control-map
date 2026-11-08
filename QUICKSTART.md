@@ -24,9 +24,9 @@ python editor.py
 |--------|--------|
 | Click + Drag | Move single box |
 | Double-Click | Edit box text, key, position, size |
-| Ctrl + Click + Drag | Move multiple selected boxes |
-| Click corner + Drag | Resize box (corner = bottom-right) |
-| Right-Click | Show color picker at mouse position |
+| Ctrl + Click | Toggle box selection for multi-select |
+| Ctrl + Drag | Move multiple selected boxes |
+| Right-Click | Select box (color picker moved to sidebar) |
 
 ### Zoom & Pan
 | Action | Result |

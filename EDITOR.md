@@ -8,10 +8,10 @@ A fully interactive, Figma-inspired editor for creating custom HOTAS device layo
 ✅ **DCS HTML Import** - Parse DCS control exports (shows button + command)  
 ✅ **Custom Boxes** - Insert boxes with any text/properties  
 ✅ **Figma-Style Editing** - Click box to select, sidebar shows/updates properties in real-time  
-✅ **Advanced Resizing** - Drag from any edge (top, bottom, left, right, corner)  
+✅ **Sidebar Resizing** - Edit width/height directly in properties sidebar  
 ✅ **Draggable Boxes** - Position each control on the layout  
-✅ **Multi-Select** - Drag multiple boxes together with Ctrl+click  
-✅ **Color Customization** - Right-click for instant color picker at mouse  
+✅ **Multi-Select** - Ctrl+click to select multiple boxes, drag together  
+✅ **Color Customization** - Inline color palette in sidebar  
 ✅ **Connection Lines** - Draw lines with waypoints to show relationships  
 ✅ **Zoom/Pan** - Mouse wheel to zoom, Figma-style middle-mouse/space pan  
 ✅ **JSON Save** - Save layout configuration  
@@ -42,40 +42,32 @@ python editor.py
 
 ### 3. Edit/Position with Sidebar
 
-**Click a box:**
-- Properties panel appears on the right
-- Edit text, position, size, color in real-time
-- Changes apply instantly
+**Click a box to select:**
+- Properties panel appears on the right showing all box properties
+- Edit text (title), subtitle, position (X, Y), size (Width, Height), and color
+- All changes apply instantly to the canvas
 
-**Resize like Figma:**
-- Drag from **any edge**: top, bottom, left, right, or corner
-- Drag from **corners** to resize both dimensions
-- Drag from **edges** to resize one dimension while keeping opposite edge fixed
+**Move Boxes:**
+- Click and drag any box to move it
+- Use Ctrl+click to select multiple boxes
+- Drag any selected box to move all together
+
+**Resize Boxes:**
+- Edit **Width** and **Height** fields in the sidebar
+- Click the "+" and "-" buttons to adjust, or type values directly
+- Minimum width: 40px, minimum height: 20px
+
+**Customize Colors:**
+- Click a box to select it
+- Scroll to the "Color" section in the sidebar
+- Click any color in the inline 3×5 color grid
+- Selected color shows with sunken button appearance
+- Color updates instantly on canvas
 
 **Insert Custom Boxes:**
 - Click **"Insert Box"** button
-- Enter properties in dialog
-- Custom box appears at specified location
-
-### 4. Position Controls
-
-**Drag Boxes:**
-- Click and drag any box to move it
-- Boxes show button/control name and command inside
-
-**Multi-Select:**
-- Hold **Ctrl** and click boxes to select multiple
-- Drag one selected box to move all selected boxes together
-
-### 5. Customize Colors
-
-1. **Right-click** a box → color picker opens at mouse position
-2. Click a color in the popup palette
-3. Box color updates instantly and picker closes
-
-**Or use sidebar:**
-- Click box to select
-- Click "Change Color" button in sidebar
+- Enter properties in dialog (text, subtitle, position, size, color)
+- Custom box appears and is ready to move/edit
 
 ### 6. Draw Connection Lines (Optional)
 
@@ -160,31 +152,25 @@ The right sidebar shows the **selected box's properties** and updates in real-ti
 - Edit to resize to exact size
 - Updates as you drag edges
 
-### Color
-- Shows current color
-- Click "Change Color" to pick new color
-- Also accessible via right-click on canvas
-
 ## Keyboard/Mouse Controls
 
 | Action | Control |
 |--------|---------|
 | **Select Box** | Click on box (properties appear in sidebar) |
 | **Move Box** | Click + Drag (anywhere inside box) |
-| **Resize Box** | Drag from edge or corner |
-| **- Top edge** | Drag top, keeps bottom fixed |
-| **- Bottom edge** | Drag bottom, keeps top fixed |
-| **- Left edge** | Drag left, keeps right fixed |
-| **- Right edge** | Drag right, keeps left fixed |
-| **- Corner** | Drag corner, keeps opposite corner fixed |
-| **Multi-Select** | Ctrl + Click boxes |
-| **Move Multiple** | Drag any selected box |
-| **Change Color** | Right-click box (opens at mouse) |
-| **Zoom In** | Mouse Wheel Up / Scroll Up |
-| **Zoom Out** | Mouse Wheel Down / Scroll Down (min 10%) |
+| **Resize Box** | Edit Width/Height in sidebar (easier than dragging) |
+| **Multi-Select** | Ctrl + Click boxes (toggles selection) |
+| **Move Multiple** | Drag any selected box (all move together) |
+| **Change Color** | Select box → Click color in sidebar (3×5 palette grid) |
+| **Edit Text** | Select box → Edit "Title" field in sidebar |
+| **Edit Function** | Select box → Edit "Subtitle" field in sidebar |
+| **Edit Position** | Select box → Edit X/Y in sidebar |
+| **Zoom In** | Mouse Wheel Up (max 300%) |
+| **Zoom Out** | Mouse Wheel Down (min 10%) |
 | **Pan Canvas** | Middle Mouse Drag |
 | **Pan Canvas** | Space + Click + Drag (Figma-style) |
-| **Draw Line** | Click "Draw Line" button |
+| **Draw Line** | Click "Draw Line" button, then left/right click on canvas |
+| **Double-Click** | Open legacy edit dialog (text/subtitle/key/position/size/color all in one dialog) |
 
 ## Editing Boxes
 

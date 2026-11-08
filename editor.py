@@ -138,14 +138,10 @@ class ControlBox:
             )
     
     def redraw(self):
-        """Redraw the box (used after changes)."""
-        if self.rect_id:
-            self.canvas.delete(self.rect_id)
-        if self.text_id:
-            self.canvas.delete(self.text_id)
-        if self.subtitle_id:
-            self.canvas.delete(self.subtitle_id)
-        self.draw()
+        """Redraw the box (used after changes). Note: box doesn't store zoom/pan; call via canvas redraw."""
+        # This method is deprecated - use canvas.redraw_canvas() instead
+        # Boxes cannot redraw themselves without access to current zoom/pan
+        pass
     
     def contains(self, x, y):
         """Check if point is inside this box."""
@@ -165,9 +161,9 @@ class ControlBox:
         self.redraw()
     
     def set_color(self, color):
-        """Set box color."""
+        """Set box color and trigger redraw via canvas."""
         self.color = color
-        self.redraw()
+        # Note: redraw() is now a no-op; caller must call canvas.redraw_canvas()
     
     def toggle_select(self):
         """Toggle selection state."""
@@ -202,8 +198,6 @@ class LayoutEditor:
         self.selected_boxes = []
         self.selected_box = None  # Current box being edited in sidebar
         self.dragging_box = None
-        self.resizing_box = None
-        self.resize_edge = None  # 'left', 'right', 'top', 'bottom', 'corner'
         self.last_mouse_x = 0
         self.last_mouse_y = 0
         self.panning = False
@@ -400,13 +394,7 @@ class LayoutEditor:
                 self.last_mouse_x = event.x
                 self.last_mouse_y = event.y
                 
-                # Detect which edge/corner is being dragged
-                edge = self.get_resize_edge(box, model_x, model_y)
-                if edge:
-                    self.resizing_box = box
-                    self.resize_edge = edge
-                
-                # Select box for sidebar
+                # Select box for sidebar (no edge-based resizing)
                 self.selected_box = box
                 self.update_sidebar()
                 self.redraw_boxes()
@@ -417,27 +405,6 @@ class LayoutEditor:
         self.selected_box = None
         self.update_sidebar()
         self.redraw_boxes()
-    
-    def get_resize_edge(self, box, x, y):
-        """Detect which edge/corner the click is near. Returns 'top', 'bottom', 'left', 'right', or 'corner'."""
-        # Tolerance scales with zoom so resize handles are easy to click at any zoom level
-        tolerance = 8 / self.zoom
-        left = abs(x - box.x) < tolerance
-        right = abs(x - (box.x + box.width)) < tolerance
-        top = abs(y - box.y) < tolerance
-        bottom = abs(y - (box.y + box.height)) < tolerance
-        
-        if (left or right) and (top or bottom):
-            return "corner"
-        elif top:
-            return "top"
-        elif bottom:
-            return "bottom"
-        elif left:
-            return "left"
-        elif right:
-            return "right"
-        return None
     
     def on_canvas_middle_down(self, event):
         """Handle middle mouse button down - start panning."""
@@ -482,7 +449,11 @@ class LayoutEditor:
         model_x, model_y = self.screen_to_model(event.x, event.y)
         for box in self.boxes:
             if box.contains(model_x, model_y):
-                self.show_color_picker(box, event.x, event.y)
+                # Right-click now selects the box (like left-click)
+                # Color picking moved to sidebar
+                self.selected_box = box
+                self.update_sidebar()
+                self.redraw_boxes()
                 return
     
     def on_canvas_ctrl_click(self, event):
@@ -498,7 +469,7 @@ class LayoutEditor:
                 return
     
     def on_canvas_drag(self, event):
-        """Handle drag - move or resize with edges."""
+        """Handle drag - move boxes (resizing via sidebar only)."""
         # If space is pressed, pan instead
         if self.space_pressed:
             dx = event.x - self.last_mouse_x
@@ -515,38 +486,15 @@ class LayoutEditor:
             dx_model = (event.x - self.last_mouse_x) / self.zoom
             dy_model = (event.y - self.last_mouse_y) / self.zoom
             
-            if self.resizing_box and self.resize_edge:
-                # Resize based on which edge(s) are being dragged
-                edge = self.resize_edge
-                box = self.resizing_box
-                
-                if edge == "corner":
-                    # Bottom-right corner
-                    box.width = max(40, box.width + dx_model)
-                    box.height = max(20, box.height + dy_model)
-                elif edge == "bottom":
-                    box.height = max(20, box.height + dy_model)
-                elif edge == "right":
-                    box.width = max(40, box.width + dx_model)
-                elif edge == "top":
-                    box.y += dy_model
-                    box.height = max(20, box.height - dy_model)
-                elif edge == "left":
-                    box.x += dx_model
-                    box.width = max(40, box.width - dx_model)
-                
-                self.update_sidebar()
-            else:
-                # Drag selected boxes
-                if self.dragging_box not in self.selected_boxes:
-                    self.selected_boxes = [self.dragging_box]
-                
-                for box in self.selected_boxes:
-                    box.x += dx_model
-                    box.y += dy_model
-                
-                self.update_sidebar()
+            # Drag selected boxes
+            if self.dragging_box not in self.selected_boxes:
+                self.selected_boxes = [self.dragging_box]
             
+            for box in self.selected_boxes:
+                box.x += dx_model
+                box.y += dy_model
+            
+            self.update_sidebar()
             self.last_mouse_x = event.x
             self.last_mouse_y = event.y
             self.redraw_canvas()
@@ -554,45 +502,12 @@ class LayoutEditor:
     def on_canvas_release(self, event):
         """Handle release."""
         self.dragging_box = None
-        self.resizing_box = None
-        self.resize_edge = None
     
     def redraw_boxes(self):
         """Redraw all boxes with selection states and update canvas."""
         for box in self.boxes:
             box.set_select(box in self.selected_boxes)
         self.redraw_canvas()
-    
-    def show_color_picker(self, box, x, y):
-        """Show color palette popup at mouse position."""
-        colors = [
-            "#81ff83", "#fff1a0", "#ff858b", "#83c8f2", "#baff85",
-            "#ffb28a", "#ff6b73", "#4df500", "#83ffff", "#d585ee",
-            "#ffffff", "#000000", "#cccccc", "#ff0000", "#00ff00"
-        ]
-        
-        popup = tk.Toplevel(self.root)
-        popup.geometry("200x200")
-        popup.title("Color Palette")
-        
-        # Position popup at mouse location
-        popup.geometry(f"200x200+{x}+{y}")
-        
-        def pick_color(c):
-            box.set_color(c)
-            popup.destroy()
-        
-        for i, color in enumerate(colors):
-            row = i // 3
-            col = i % 3
-            btn = tk.Button(
-                popup, bg=color, height=2, width=6,
-                command=lambda c=color: pick_color(c)
-            )
-            btn.grid(row=row, column=col, padx=2, pady=2)
-        
-        # Focus popup so it gets destroyed when clicking outside
-        popup.focus_set()
     
     def update_sidebar(self):
         """Update sidebar with selected box properties."""
@@ -615,7 +530,6 @@ class LayoutEditor:
         
         def on_text_change(*args):
             box.text = text_var.get()
-            box.redraw()
             self.redraw_canvas()
         
         text_var.trace("w", on_text_change)
@@ -628,7 +542,6 @@ class LayoutEditor:
         
         def on_subtitle_change(*args):
             box.subtitle = subtitle_var.get()
-            box.redraw()
             self.redraw_canvas()
         
         subtitle_var.trace("w", on_subtitle_change)
@@ -656,7 +569,6 @@ class LayoutEditor:
         def on_x_change(*args):
             try:
                 box.x = float(x_var.get())
-                box.redraw()
                 self.redraw_canvas()
             except ValueError:
                 pass
@@ -672,7 +584,6 @@ class LayoutEditor:
         def on_y_change(*args):
             try:
                 box.y = float(y_var.get())
-                box.redraw()
                 self.redraw_canvas()
             except ValueError:
                 pass
@@ -692,7 +603,6 @@ class LayoutEditor:
             try:
                 box.width = max(40, float(w_var.get()))
                 w_var.set(str(int(box.width)))
-                box.redraw()
                 self.redraw_canvas()
             except ValueError:
                 pass
@@ -709,22 +619,37 @@ class LayoutEditor:
             try:
                 box.height = max(20, float(h_var.get()))
                 h_var.set(str(int(box.height)))
-                box.redraw()
                 self.redraw_canvas()
             except ValueError:
                 pass
         
         h_var.trace("w", on_height_change)
         
-        # Color section
+        # Color section - inline color picker
         ttk.Label(self.properties_inner, text="Color", font=("Arial", 10, "bold")).pack(anchor="w", padx=10, pady=(15, 5))
         
-        def on_color_click():
-            self.show_color_picker(box, 0, 0)
+        colors = [
+            "#81ff83", "#fff1a0", "#ff858b", "#83c8f2", "#baff85",
+            "#ffb28a", "#ff6b73", "#4df500", "#83ffff", "#d585ee",
+            "#ffffff", "#000000", "#cccccc", "#ff0000", "#00ff00"
+        ]
         
-        color_btn = tk.Button(self.properties_inner, bg=box.color, text="Change Color", 
-                               command=on_color_click, width=20, height=2)
-        color_btn.pack(padx=10, pady=5)
+        color_frame = tk.Frame(self.properties_inner)
+        color_frame.pack(padx=10, pady=5)
+        
+        def on_color_change(new_color):
+            box.set_color(new_color)
+            self.redraw_canvas()
+        
+        for i, color in enumerate(colors):
+            row = i // 3
+            col = i % 3
+            color_btn = tk.Button(
+                color_frame, bg=color, width=5, height=2,
+                relief=tk.RAISED if box.color != color else tk.SUNKEN,
+                command=lambda c=color: on_color_change(c)
+            )
+            color_btn.grid(row=row, column=col, padx=2, pady=2)
         
         # Update scroll region
         self.properties_inner.update_idletasks()
