@@ -121,10 +121,13 @@ layouts/
 | Action | Control |
 |--------|---------|
 | **Zoom In** | Mouse Wheel Up / Scroll Up |
-| **Zoom Out** | Mouse Wheel Down / Scroll Down |
+| **Zoom Out** | Mouse Wheel Down / Scroll Down (min 10%) |
+| **Pan Canvas** | Middle Mouse Drag |
+| **Pan Canvas** | Space + Click + Drag (Figma-style) |
 | **Drag Box** | Click + Drag |
 | **Resize Box** | Click corner + Drag |
 | **Select Multiple** | Ctrl + Click boxes |
+| **Drag Multiple** | Drag any selected box |
 | **Change Color** | Right-click box |
 | **Draw Line** | Click "Draw Line" button |
 

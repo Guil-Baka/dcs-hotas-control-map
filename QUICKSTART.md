@@ -29,8 +29,10 @@ python editor.py
 ### Zoom & Pan
 | Action | Result |
 |--------|--------|
-| Mouse Wheel Up | Zoom in |
-| Mouse Wheel Down | Zoom out |
+| Mouse Wheel Up | Zoom in (max 300%) |
+| Mouse Wheel Down | Zoom out (min 10%) |
+| Middle Mouse Drag | Pan canvas |
+| Space + Drag | Pan canvas (Figma-style) |
 
 ### Line Drawing (When in Draw Mode)
 | Action | Result |

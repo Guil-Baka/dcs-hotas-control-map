@@ -179,6 +179,8 @@ class LayoutEditor:
         self.resizing_box = None
         self.last_mouse_x = 0
         self.last_mouse_y = 0
+        self.panning = False
+        self.space_pressed = False
         
         self.setup_ui()
     
@@ -207,10 +209,16 @@ class LayoutEditor:
         self.canvas.bind("<Button-4>", self.on_mousewheel)  # Linux scroll up
         self.canvas.bind("<Button-5>", self.on_mousewheel)  # Linux scroll down
         self.canvas.bind("<Button-1>", self.on_canvas_left_click)
+        self.canvas.bind("<Button-2>", self.on_canvas_middle_down)  # Middle mouse
+        self.canvas.bind("<B2-Motion>", self.on_canvas_pan_drag)
+        self.canvas.bind("<ButtonRelease-2>", self.on_canvas_middle_up)
         self.canvas.bind("<Button-3>", self.on_canvas_right_click)
         self.canvas.bind("<B1-Motion>", self.on_canvas_drag)
         self.canvas.bind("<ButtonRelease-1>", self.on_canvas_release)
         self.canvas.bind("<Control-Button-1>", self.on_canvas_ctrl_click)
+        self.canvas.bind("<KeyPress-space>", self.on_space_press)
+        self.canvas.bind("<KeyRelease-space>", self.on_space_release)
+        self.canvas.focus_set()
         
         # Status bar
         self.status = ttk.Label(self.root, text="Ready", relief=tk.SUNKEN)
@@ -297,7 +305,7 @@ class LayoutEditor:
     def on_mousewheel(self, event):
         """Handle zoom with mouse wheel."""
         delta = 1.1 if event.num == 4 or event.delta > 0 else 0.9
-        self.zoom = max(0.5, min(3.0, self.zoom * delta))
+        self.zoom = max(0.1, min(3.0, self.zoom * delta))
         self.zoom_label.config(text=f"{int(self.zoom * 100)}%")
         self.redraw_canvas()
     
@@ -325,6 +333,40 @@ class LayoutEditor:
         self.selected_boxes = []
         self.redraw_boxes()
     
+    def on_canvas_middle_down(self, event):
+        """Handle middle mouse button down - start panning."""
+        self.panning = True
+        self.last_mouse_x = event.x
+        self.last_mouse_y = event.y
+        self.canvas.config(cursor="hand2")
+    
+    def on_canvas_middle_up(self, event):
+        """Handle middle mouse button up - stop panning."""
+        self.panning = False
+        self.canvas.config(cursor="cross")
+    
+    def on_canvas_pan_drag(self, event):
+        """Handle pan drag (middle mouse or space+drag)."""
+        dx = event.x - self.last_mouse_x
+        dy = event.y - self.last_mouse_y
+        
+        self.pan_x += dx
+        self.pan_y += dy
+        self.last_mouse_x = event.x
+        self.last_mouse_y = event.y
+        
+        self.redraw_canvas()
+    
+    def on_space_press(self, event):
+        """Handle space key press."""
+        self.space_pressed = True
+        self.canvas.config(cursor="hand2")
+    
+    def on_space_release(self, event):
+        """Handle space key release."""
+        self.space_pressed = False
+        self.canvas.config(cursor="cross")
+    
     def on_canvas_right_click(self, event):
         """Handle right click - show color picker."""
         if self.drawing_line:
@@ -349,6 +391,17 @@ class LayoutEditor:
     
     def on_canvas_drag(self, event):
         """Handle drag."""
+        # If space is pressed, pan instead
+        if self.space_pressed:
+            dx = event.x - self.last_mouse_x
+            dy = event.y - self.last_mouse_y
+            self.pan_x += dx
+            self.pan_y += dy
+            self.last_mouse_x = event.x
+            self.last_mouse_y = event.y
+            self.redraw_canvas()
+            return
+        
         if self.dragging_box:
             dx = event.x - self.last_mouse_x
             dy = event.y - self.last_mouse_y
