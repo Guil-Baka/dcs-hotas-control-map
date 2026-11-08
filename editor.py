@@ -635,8 +635,7 @@ class LayoutEditor:
                 
                 self.resizing_box.width = max(40, self.resizing_box.width + dx_model)
                 self.resizing_box.height = max(20, self.resizing_box.height + dy_model)
-                # Update sidebar during resize so user sees size changing
-                self.update_sidebar()
+                # Don't update sidebar during drag for performance
             
             self.last_mouse_x = event.x
             self.last_mouse_y = event.y
@@ -659,16 +658,18 @@ class LayoutEditor:
                 self.dragging_box.x += dx_model
                 self.dragging_box.y += dy_model
             
-            # Update sidebar during move so user sees position changing
-            self.update_sidebar()
-            
+            # Don't update sidebar during drag for performance
             self.last_mouse_x = event.x
             self.last_mouse_y = event.y
             self.redraw_canvas()
             self.canvas.update()  # Immediate visual update
     
     def on_canvas_release(self, event):
-        """Handle release."""
+        """Handle release - update sidebar after dragging finishes."""
+        # Update sidebar after drag/resize completes
+        if self.dragging_box or self.resizing_box:
+            self.update_sidebar()
+        
         self.dragging_box = None
         self.resizing_box = None
     
