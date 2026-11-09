@@ -62,7 +62,7 @@ echo Building executable...
 echo This may take 1-2 minutes...
 echo.
 
-pyinstaller ^
+python -m PyInstaller ^
     --onefile ^
     --windowed ^
     --name "HOTAS Layout Editor" ^

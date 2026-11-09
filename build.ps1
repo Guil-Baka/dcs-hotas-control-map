@@ -57,7 +57,7 @@ Write-Host "Building executable..." -ForegroundColor Yellow
 Write-Host "This may take 1-2 minutes..." -ForegroundColor Gray
 Write-Host ""
 
-pyinstaller `
+python -m PyInstaller `
     --onefile `
     --windowed `
     --name "HOTAS Layout Editor" `
