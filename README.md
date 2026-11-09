@@ -44,7 +44,7 @@ Text wraps to fit inside boxes. Canvas text scales with zoom; exported text is s
 | Move selected boxes | Drag |
 | Select multiple boxes | Ctrl+click |
 | Resize a box | Double-click it, then drag its bottom-right handle |
-| Change a box color | Right-click it |
+| Change a box color | Click it and go to the sidebar |
 | Zoom | Mouse wheel (10–300%) |
 | Pan | Middle-mouse drag or hold Space and drag |
 | Delete selected boxes or line | Delete |
