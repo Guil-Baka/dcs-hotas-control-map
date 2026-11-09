@@ -7,6 +7,7 @@ __pycache__/
 build/
 develop-eggs/
 dist/
+bin/
 downloads/
 eggs/
 .eggs/
@@ -22,6 +23,9 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+
+# PyInstaller
+*.spec
 
 # Virtual Environments
 venv/
