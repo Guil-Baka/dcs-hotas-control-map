@@ -49,6 +49,9 @@ Thumbs.db
 layouts/*/layout.png
 layouts/*/image.png
 
+# Local tests
+tests/
+
 # Environment variables
 .env
 .env.local

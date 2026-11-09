@@ -44,10 +44,6 @@ if (Test-Path ".\dist") {
     Remove-Item -Path ".\dist" -Recurse -Force
     Write-Host "  Removed .\dist" -ForegroundColor Gray
 }
-if (Test-Path ".\bin") {
-    Remove-Item -Path ".\bin" -Recurse -Force
-    Write-Host "  Removed .\bin" -ForegroundColor Gray
-}
 Get-Item -Path "*.spec" -ErrorAction SilentlyContinue | Remove-Item -Force
 Write-Host "Clean complete" -ForegroundColor Green
 Write-Host ""
@@ -81,6 +77,7 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host "To distribute:" -ForegroundColor Cyan
     Write-Host "  Copy '.\bin\HOTAS Layout Editor.exe' to any Windows computer" -ForegroundColor White
     Write-Host "  (Python installation not required)" -ForegroundColor White
+    Write-Host "  Copy the adjacent 'layouts' folder too if you want to keep your saved layouts." -ForegroundColor White
     Write-Host ""
 } else {
     Write-Host ""

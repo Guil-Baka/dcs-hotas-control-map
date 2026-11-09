@@ -85,6 +85,12 @@ python editor.py
 - Click **"Save Layout"** (💾 icon) → `layout.json`
 - Click **"Export PNG"** (📸 icon) → `layout.png`
 
+Layouts, copied device images, and exports are stored in
+`layouts/{device_name}/` next to the executable, regardless of the current
+working directory. When running from source, they are stored next to
+`editor.py` instead. Opening a layout from another location does not move it;
+saving it creates a local copy with its image.
+
 ## Text & Font System
 
 ### Font Sizing
@@ -213,6 +219,9 @@ pyinstaller --onefile --windowed --name "HOTAS Layout Editor" --distpath ".\bin"
 ```
 
 **No Python needed on target machine!** Users can run the EXE directly.
+The directory containing the EXE must be writable. To move existing layouts to
+another computer, copy the `layouts` folder alongside the EXE. The build
+scripts preserve the `bin\layouts` folder when rebuilding.
 
 ## Troubleshooting
 
@@ -222,7 +231,8 @@ pip install -r requirements.txt
 ```
 
 **"Layouts not saving"**
-- Check that `layouts/` folder is writable
+- Check that the directory containing the EXE (or `editor.py` when running
+  from source) and its `layouts/` folder are writable
 - App creates folders automatically
 
 **"Image won't load"**

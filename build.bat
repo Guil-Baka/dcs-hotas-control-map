@@ -49,10 +49,6 @@ if exist "dist" (
     rmdir /s /q "dist"
     echo   Removed ./dist
 )
-if exist "bin" (
-    rmdir /s /q "bin"
-    echo   Removed ./bin
-)
 del /q "*.spec" 2>nul
 echo Clean complete
 echo.
@@ -94,6 +90,7 @@ echo.
 echo To distribute:
 echo   Copy ".\bin\HOTAS Layout Editor.exe" to any Windows computer
 echo   (Python installation not required)
+echo   Copy the adjacent "layouts" folder too if you want to keep your saved layouts.
 echo.
 
 REM Cleanup build artifacts

@@ -3,6 +3,7 @@
 
 import json
 import re
+import sys
 import tkinter as tk
 from html.parser import HTMLParser
 from pathlib import Path
@@ -11,7 +12,7 @@ from tkinter import ttk
 from PIL import Image, ImageDraw, ImageFont, ImageTk
 import io
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(sys.executable if getattr(sys, "frozen", False) else __file__).resolve().parent
 LAYOUTS_DIR = ROOT / "layouts"
 LAYOUTS_DIR.mkdir(exist_ok=True)
 
@@ -1549,8 +1550,18 @@ class LayoutEditor:
         }
 
         layout_path = device_dir / "layout.json"
-        with open(layout_path, "w") as f:
-            json.dump(layout_data, f, indent=2)
+        try:
+            device_dir.mkdir(parents=True, exist_ok=True)
+            image_path = device_dir / "image.png"
+            if self.image:
+                source_path = getattr(self.image, "filename", None)
+                if not source_path or Path(source_path).resolve() != image_path.resolve():
+                    self.image.save(image_path, format="PNG")
+            with open(layout_path, "w") as f:
+                json.dump(layout_data, f, indent=2)
+        except OSError as e:
+            messagebox.showerror("Error", f"Failed to save layout:\n{e}")
+            return
 
         messagebox.showinfo("Success", f"Layout saved to {layout_path}")
         self.status.config(text=f"Layout saved")
@@ -1617,6 +1628,7 @@ class LayoutEditor:
                 self.zoom_label.config(text=f"{int(self.zoom * 100)}%")
                 self.status.config(text=f"Loaded image: {image_path.name} (auto-fit: {int(self.zoom * 100)}%)")
             else:
+                self.image = None
                 messagebox.showwarning("Warning", 
                     f"Device image not found in {layout_dir}\n"
                     f"You can still edit boxes, but image won't display")
@@ -1822,7 +1834,12 @@ class LayoutEditor:
 
         device_dir = LAYOUTS_DIR / self.device_name
         export_path = device_dir / "layout.png"
-        export_img.save(export_path)
+        try:
+            device_dir.mkdir(parents=True, exist_ok=True)
+            export_img.save(export_path)
+        except OSError as e:
+            messagebox.showerror("Error", f"Failed to export layout:\n{e}")
+            return
 
         messagebox.showinfo("Success", f"Exported to {export_path}")
 
