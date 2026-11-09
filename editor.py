@@ -54,7 +54,15 @@ class TableParser(HTMLParser):
 
 
 def parse_html(html_path):
-    """Parse DCS HTML export and return list of controls."""
+    """Parse DCS HTML export and return list of controls with support for unlimited modifiers.
+    
+    Handles control bindings with any number of modifiers:
+    - "JOY_BTN1" - single button, no modifiers
+    - "JOY_BTN2 - JOY_BTN4" - BTN4 with BTN2 modifier
+    - "JOY_BTN1 - JOY_BTN2 - JOY_BTN4" - BTN4 with BTN1 and BTN2 modifiers (triple combo)
+    - "JOY_BTN1 - JOY_BTN2 - JOY_BTN3 - JOY_BTN4" - BTN4 with 3 modifiers (quad combo)
+    - And so on for any number of modifiers...
+    """
     data = Path(html_path).read_bytes()
     try:
         text = data.decode("utf-8-sig")
@@ -71,20 +79,23 @@ def parse_html(html_path):
             if not binding_str:
                 continue
 
-            # Split by " - " to separate modifier(s) from button
-            # Format: "JOY_BTN2 - JOY_BTN4" means JOY_BTN4 with JOY_BTN2 held
+            # Split by " - " to separate all modifiers from the main button
+            # The LAST part is the main button, everything before are modifiers
+            # This supports unlimited modifiers (1, 2, 3, 4+ modifiers)
             parts = binding_str.split(" - ")
-            button_name = parts[-1]  # Last part is the actual button
-            modifiers = parts[:-1]   # Everything before is modifiers
+            button_name = parts[-1].strip()  # Last part is the main button
+            modifiers = [p.strip() for p in parts[:-1]] if len(parts) > 1 else []  # All others are modifiers
 
-            # Create modifier text for footer (e.g., "Mod: BTN2")
+            # Create modifier text for footer (e.g., "Mod: BTN1, BTN2, BTN3")
             modifier_text = ""
             if modifiers:
                 mod_names = []
                 for mod in modifiers:
-                    # Extract button number from "JOY_BTN2" -> "BTN2"
+                    # Extract button/axis name from "JOY_BTN2" -> "BTN2" or "JOY_Y_AXIS" -> "Y AXIS"
                     mod_clean = mod.replace("JOY_", "").replace("_", " ")
                     mod_names.append(mod_clean)
+                
+                # Format: "Mod: BTN1, BTN2" or "Mod: BTN1, BTN2, BTN3" etc.
                 modifier_text = f"Mod: {', '.join(mod_names)}"
 
             controls.append({
@@ -161,6 +172,10 @@ class ControlBox:
         self.color = color
         self.selected = False
         self.is_auto_imported = False  # Track if this box was auto-imported from HTML
+        # Font size multipliers (base values that scale with zoom)
+        self.text_font_size = 1.0  # Title font size multiplier
+        self.subtitle_font_size = 1.0  # Subtitle font size multiplier
+        self.footer_font_size = 1.0  # Footer font size multiplier
         self.line_id = None
         self.line_waypoints = []
         self.rect_id = None
@@ -170,33 +185,55 @@ class ControlBox:
         self.resize_handle_id = None  # Visual resize handle
         self.text_wrap_cache = {}  # Cache: (text, max_chars) -> wrapped_text
 
-    def wrap_text(self, text, max_width_chars=15):
-        """Wrap text to fit within reasonable bounds. Simple character-based wrapping with caching."""
-        cache_key = (text, max_width_chars)
-        if cache_key in self.text_wrap_cache:
-            return self.text_wrap_cache[cache_key]
-
-        if len(text) <= max_width_chars:
-            wrapped = text
-        else:
-            # Break into multiple lines
-            words = text.split()
-            lines = []
-            current_line = []
-            for word in words:
-                if len(" ".join(current_line + [word])) <= max_width_chars:
-                    current_line.append(word)
-                else:
-                    if current_line:
-                        lines.append(" ".join(current_line))
-                    current_line = [word]
-            if current_line:
-                lines.append(" ".join(current_line))
-            wrapped = "\n".join(lines)
-
-        # Cache the result
-        self.text_wrap_cache[cache_key] = wrapped
-        return wrapped
+    def wrap_text(self, text, box_width, font_size):
+        """Wrap text to fit within box width (pixel-based, not character-based).
+        
+        Only breaks lines when text actually exceeds the available width.
+        Uses approximate character width calculation based on font size.
+        """
+        if not text:
+            return text
+        
+        # Average character width is roughly 0.5 * font_size
+        # This is an approximation that works reasonably for most fonts
+        avg_char_width = font_size * 0.5
+        
+        # Available width is 90% of box width
+        available_width = box_width * 0.9
+        
+        # Maximum characters that can fit in one line
+        max_chars_per_line = int(available_width / avg_char_width)
+        
+        # If text fits on one line, return as-is
+        if len(text) <= max_chars_per_line:
+            return text
+        
+        # Split text into words and build lines
+        words = text.split()
+        lines = []
+        current_line = []
+        current_length = 0
+        
+        for word in words:
+            word_length = len(word)
+            # Account for spaces between words
+            space_needed = 1 if current_line else 0
+            
+            if current_length + space_needed + word_length <= max_chars_per_line:
+                current_line.append(word)
+                current_length += space_needed + word_length
+            else:
+                # Start a new line
+                if current_line:
+                    lines.append(" ".join(current_line))
+                current_line = [word]
+                current_length = word_length
+        
+        # Add remaining words
+        if current_line:
+            lines.append(" ".join(current_line))
+        
+        return "\n".join(lines)
 
     def draw(self, zoom=1.0, pan_x=0, pan_y=0, show_resize_handle=False):
         """Draw the box with zoom and pan transformations.
@@ -221,16 +258,16 @@ class ControlBox:
             fill=self.color, outline=outline, width=width, tags=f"box_{id(self)}"
         )
 
-        # Font size scales with zoom
-        font_size_title = max(7, int(9 * zoom))
-        font_size_subtitle = max(5, int(7 * zoom))
-        font_size_footer = max(4, int(6 * zoom))
+        # Font size scales with zoom and font size multiplier
+        font_size_title = max(7, int(9 * zoom * self.text_font_size))
+        font_size_subtitle = max(5, int(7 * zoom * self.subtitle_font_size))
+        font_size_footer = max(4, int(6 * zoom * self.footer_font_size))
 
         # Title text - at top (within 2% of box height from top)
         title_y = y_scaled + h_scaled * 0.08  # 2% + some padding
         self.text_id = self.canvas.create_text(
             x_scaled + w_scaled / 2, title_y,
-            text=self.wrap_text(self.text, int(self.width / 5)),
+            text=self.wrap_text(self.text, self.width, font_size_title),
             fill="black", font=("Arial", font_size_title, "bold"),
             tags=f"text_{id(self)}", justify=tk.CENTER, width=int(w_scaled * 0.9)
         )
@@ -240,7 +277,7 @@ class ControlBox:
         if self.subtitle:
             self.subtitle_id = self.canvas.create_text(
                 x_scaled + w_scaled / 2, subtitle_y,
-                text=self.wrap_text(self.subtitle, int(self.width / 5)),
+                text=self.wrap_text(self.subtitle, self.width, font_size_subtitle),
                 fill="#333333", font=("Arial", font_size_subtitle),
                 tags=f"subtitle_{id(self)}", justify=tk.CENTER, width=int(w_scaled * 0.9)
             )
@@ -250,7 +287,7 @@ class ControlBox:
         if self.footer:
             self.footer_id = self.canvas.create_text(
                 x_scaled + w_scaled / 2, footer_y,
-                text=self.wrap_text(self.footer, int(self.width / 5)),
+                text=self.wrap_text(self.footer, self.width, font_size_footer),
                 fill="#555555", font=("Arial", font_size_footer),
                 tags=f"footer_{id(self)}", justify=tk.CENTER, width=int(w_scaled * 0.9)
             )
@@ -634,15 +671,19 @@ class LayoutEditor:
             button_name = control["key"].replace(
                 "JOY_BTN", "").replace("JOY_", "")
             command = control.get("command", "")
-            # Abbreviate command if too long
-            if len(command) > 25:
-                command = command[:22] + "..."
+            # No truncation - let the text wrapping handle it naturally
 
             # Determine color and footer based on modifiers
+            # Support any number of modifiers (1, 2, 3, or more)
+            modifiers = control.get("modifiers", [])
             color = "#81ff83"  # Default green
             footer = ""
-            if control.get("modifiers"):
+            
+            if modifiers:
+                # Multi-modifier support: any number of modifiers are marked as red
                 color = "#ff4444"  # Red for modifier controls
+                # Use the modifier text generated during parsing
+                # which already handles multiple modifiers: "Mod: BTN1, BTN2, BTN3"
                 footer = control.get("modifier_text", "")
 
             box = ControlBox(
@@ -1191,6 +1232,64 @@ class LayoutEditor:
                 pass
 
         h_var.trace_add("write", on_height_change)
+
+        # Font Size section
+        ttk.Label(self.properties_inner, text="Text Font Sizes", font=(
+            "Arial", 10, "bold")).pack(anchor="w", padx=10, pady=(15, 5))
+
+        # Title font size
+        ttk.Label(self.properties_inner, text="Title Size:").pack(
+            anchor="w", padx=10)
+        title_size_var = tk.StringVar(value=str(round(box.text_font_size, 1)))
+        title_size_entry = ttk.Entry(self.properties_inner,
+                                     textvariable=title_size_var, width=25)
+        title_size_entry.pack(padx=10, pady=2, fill=tk.X)
+
+        def on_title_size_change(*args):
+            try:
+                box.text_font_size = max(0.5, min(2.0, float(title_size_var.get())))
+                title_size_var.set(str(round(box.text_font_size, 1)))
+                self.redraw_canvas()
+            except ValueError:
+                pass
+
+        title_size_var.trace_add("write", on_title_size_change)
+
+        # Subtitle font size
+        ttk.Label(self.properties_inner, text="Subtitle Size:").pack(
+            anchor="w", padx=10)
+        subtitle_size_var = tk.StringVar(value=str(round(box.subtitle_font_size, 1)))
+        subtitle_size_entry = ttk.Entry(self.properties_inner,
+                                        textvariable=subtitle_size_var, width=25)
+        subtitle_size_entry.pack(padx=10, pady=2, fill=tk.X)
+
+        def on_subtitle_size_change(*args):
+            try:
+                box.subtitle_font_size = max(0.5, min(2.0, float(subtitle_size_var.get())))
+                subtitle_size_var.set(str(round(box.subtitle_font_size, 1)))
+                self.redraw_canvas()
+            except ValueError:
+                pass
+
+        subtitle_size_var.trace_add("write", on_subtitle_size_change)
+
+        # Footer font size
+        ttk.Label(self.properties_inner, text="Footer Size:").pack(
+            anchor="w", padx=10)
+        footer_size_var = tk.StringVar(value=str(round(box.footer_font_size, 1)))
+        footer_size_entry = ttk.Entry(self.properties_inner,
+                                      textvariable=footer_size_var, width=25)
+        footer_size_entry.pack(padx=10, pady=2, fill=tk.X)
+
+        def on_footer_size_change(*args):
+            try:
+                box.footer_font_size = max(0.5, min(2.0, float(footer_size_var.get())))
+                footer_size_var.set(str(round(box.footer_font_size, 1)))
+                self.redraw_canvas()
+            except ValueError:
+                pass
+
+        footer_size_var.trace_add("write", on_footer_size_change)
 
         # Color section - inline color picker
         ttk.Label(self.properties_inner, text="Color", font=(
