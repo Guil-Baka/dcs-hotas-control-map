@@ -1,0 +1,317 @@
+{
+  "device_name": "T160000M",
+  "image_width": 2548,
+  "image_height": 1805,
+  "boxes": [
+    {
+      "x": 100,
+      "y": 200,
+      "width": 200,
+      "height": 200,
+      "text": "4",
+      "subtitle": "Flare Dispense Button - Depress",
+      "footer": "",
+      "control_key": "JOY_BTN4",
+      "color": "#81ff83",
+      "title_font_size": 14,
+      "subtitle_font_size": 11,
+      "footer_font_size": 9
+    },
+    {
+      "x": 350,
+      "y": 200,
+      "width": 200,
+      "height": 200,
+      "text": "_POV1_R",
+      "subtitle": "Force Trim/Hold Mode Switch - AL/Right",
+      "footer": "",
+      "control_key": "JOY_BTN_POV1_R",
+      "color": "#81ff83",
+      "title_font_size": 14,
+      "subtitle_font_size": 11,
+      "footer_font_size": 9
+    },
+    {
+      "x": 600,
+      "y": 200,
+      "width": 200,
+      "height": 200,
+      "text": "_POV1_L",
+      "subtitle": "Force Trim/Hold Mode Switch - AT/Left",
+      "footer": "",
+      "control_key": "JOY_BTN_POV1_L",
+      "color": "#81ff83",
+      "title_font_size": 14,
+      "subtitle_font_size": 11,
+      "footer_font_size": 9
+    },
+    {
+      "x": 308.30158004369247,
+      "y": 851.3615810597977,
+      "width": 200,
+      "height": 200,
+      "text": "_POV1_D",
+      "subtitle": "Force Trim/Hold Mode Switch - D/Down",
+      "footer": "",
+      "control_key": "JOY_BTN_POV1_D",
+      "color": "#81ff83",
+      "title_font_size": 14,
+      "subtitle_font_size": 11,
+      "footer_font_size": 9
+    },
+    {
+      "x": 627.7354400582567,
+      "y": 861.5226337448559,
+      "width": 200,
+      "height": 200,
+      "text": "_POV1_U",
+      "subtitle": "Force Trim/Hold Mode Switch - R/Up",
+      "footer": "",
+      "control_key": "JOY_BTN_POV1_U",
+      "color": "#81ff83",
+      "title_font_size": 14,
+      "subtitle_font_size": 11,
+      "footer_font_size": 9
+    },
+    {
+      "x": 1814.9865507906886,
+      "y": 1306.6425188253052,
+      "width": 227.05644241621306,
+      "height": 139.1230045635206,
+      "text": "2",
+      "subtitle": "George AI - Multifunctional Input (Center)",
+      "footer": "",
+      "control_key": "JOY_BTN2",
+      "color": "#81ff83",
+      "title_font_size": 14,
+      "subtitle_font_size": 11,
+      "footer_font_size": 9
+    },
+    {
+      "x": 506.44210740232677,
+      "y": 595.0024555877322,
+      "width": 200,
+      "height": 200,
+      "text": "4",
+      "subtitle": "TAIL WHEEL Pushbutton - LOCK/UNLOCK",
+      "footer": "Mod: BTN2",
+      "control_key": "JOY_BTN4",
+      "color": "#ff4444",
+      "title_font_size": 14,
+      "subtitle_font_size": 11,
+      "footer_font_size": 9
+    },
+    {
+      "x": 2047.006346354202,
+      "y": 1309.3108406676713,
+      "width": 225.36541476519972,
+      "height": 135.740949261494,
+      "text": "3",
+      "subtitle": "Trim - RESET to default",
+      "footer": "",
+      "control_key": "JOY_BTN3",
+      "color": "#81ff83",
+      "title_font_size": 14,
+      "subtitle_font_size": 11,
+      "footer_font_size": 9
+    },
+    {
+      "x": 2050.8845442888733,
+      "y": 1165.5585814340527,
+      "width": 221.91571835713248,
+      "height": 139.73177451788544,
+      "text": "_POV1_D",
+      "subtitle": "Weapons Action Switch - A/Down",
+      "footer": "Mod: BTN2",
+      "control_key": "JOY_BTN_POV1_D",
+      "color": "#ff4444",
+      "title_font_size": 14,
+      "subtitle_font_size": 11,
+      "footer_font_size": 9
+    },
+    {
+      "x": 2278.629039872241,
+      "y": 1167.6105686598412,
+      "width": 224.65518315177397,
+      "height": 138.36204212056467,
+      "text": "_POV1_U",
+      "subtitle": "Weapons Action Switch - G/Up",
+      "footer": "Mod: BTN2",
+      "control_key": "JOY_BTN_POV1_U",
+      "color": "#ff4444",
+      "title_font_size": 14,
+      "subtitle_font_size": 11,
+      "footer_font_size": 9
+    },
+    {
+      "x": 805.5538620467746,
+      "y": 1414.0214059509897,
+      "width": 200,
+      "height": 200,
+      "text": "_POV1_R",
+      "subtitle": "Weapons Action Switch - M/Right",
+      "footer": "Mod: BTN2",
+      "control_key": "JOY_BTN_POV1_R",
+      "color": "#ff4444",
+      "title_font_size": 14,
+      "subtitle_font_size": 11,
+      "footer_font_size": 9
+    },
+    {
+      "x": 1812.5508842401312,
+      "y": 1163.8599462625216,
+      "width": 230.99617574102942,
+      "height": 141.17814481256866,
+      "text": "_POV1_L",
+      "subtitle": "Weapons Action Switch - R/Left",
+      "footer": "Mod: BTN2",
+      "control_key": "JOY_BTN_POV1_L",
+      "color": "#ff4444",
+      "title_font_size": 14,
+      "subtitle_font_size": 11,
+      "footer_font_size": 9
+    },
+    {
+      "x": 100,
+      "y": 1200,
+      "width": 200,
+      "height": 200,
+      "text": "1",
+      "subtitle": "Weapons Trigger Switch - FIRST DETENT",
+      "footer": "Mod: BTN2",
+      "control_key": "JOY_BTN1",
+      "color": "#ff4444",
+      "title_font_size": 14,
+      "subtitle_font_size": 11,
+      "footer_font_size": 9
+    },
+    {
+      "x": 531.205439550204,
+      "y": 1606.4421074023267,
+      "width": 200,
+      "height": 200,
+      "text": "1",
+      "subtitle": "Weapons Trigger Switch - SECOND DETENT",
+      "footer": "",
+      "control_key": "JOY_BTN1",
+      "color": "#81ff83",
+      "title_font_size": 14,
+      "subtitle_font_size": 11,
+      "footer_font_size": 9
+    },
+    {
+      "x": 2278.4918817370985,
+      "y": 1310.3584384255498,
+      "width": 228.74747006722637,
+      "height": 134.04992161048057,
+      "text": "Z",
+      "subtitle": "Collective",
+      "footer": "",
+      "control_key": "JOY_Z",
+      "color": "#81ff83",
+      "title_font_size": 14,
+      "subtitle_font_size": 11,
+      "footer_font_size": 9
+    },
+    {
+      "x": 100,
+      "y": 1450,
+      "width": 200,
+      "height": 200,
+      "text": "Y",
+      "subtitle": "Cyclic Pitch",
+      "footer": "",
+      "control_key": "JOY_Y",
+      "color": "#81ff83",
+      "title_font_size": 14,
+      "subtitle_font_size": 11,
+      "footer_font_size": 9
+    },
+    {
+      "x": 573.5431590712797,
+      "y": 1543.1429829463666,
+      "width": 200,
+      "height": 200,
+      "text": "X",
+      "subtitle": "Cyclic Roll",
+      "footer": "",
+      "control_key": "JOY_X",
+      "color": "#81ff83",
+      "title_font_size": 14,
+      "subtitle_font_size": 11,
+      "footer_font_size": 9
+    },
+    {
+      "x": 1450.1414079832002,
+      "y": 764.1289437585737,
+      "width": 200,
+      "height": 200,
+      "text": "SLIDER1",
+      "subtitle": "Power Levers (Both)",
+      "footer": "",
+      "control_key": "JOY_SLIDER1",
+      "color": "#81ff83",
+      "title_font_size": 14,
+      "subtitle_font_size": 11,
+      "footer_font_size": 9
+    }
+  ],
+  "lines": [
+    {
+      "start_point": [
+        1317.2839506172838,
+        662.9629629629629
+      ],
+      "end_box_index": 9,
+      "waypoints": [
+        [
+          1033.3333333333333,
+          812.3456790123456
+        ]
+      ]
+    },
+    {
+      "start_point": [
+        1425.9259259259259,
+        549.3827160493827
+      ],
+      "end_box_index": 17,
+      "waypoints": [
+        [
+          1556.79012345679,
+          690.1234567901234
+        ]
+      ]
+    },
+    {
+      "start_point": [
+        1238.2716049382716,
+        541.9753086419753
+      ],
+      "end_box_index": 6,
+      "waypoints": [
+        [
+          934.5679012345678,
+          602.469135802469
+        ]
+      ]
+    },
+    {
+      "start_point": [
+        1338.2716049382716,
+        503.7037037037037
+      ],
+      "end_box_index": 17,
+      "waypoints": [
+        [
+          1424.6913580246912,
+          311.1111111111111
+        ],
+        [
+          1679.0123456790122,
+          656.7901234567901
+        ]
+      ]
+    }
+  ]
+}

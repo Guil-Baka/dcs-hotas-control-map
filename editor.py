@@ -8,7 +8,7 @@ from html.parser import HTMLParser
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog
 from tkinter import ttk
-from PIL import Image, ImageDraw, ImageTk
+from PIL import Image, ImageDraw, ImageFont, ImageTk
 import io
 
 ROOT = Path(__file__).resolve().parent
@@ -172,10 +172,10 @@ class ControlBox:
         self.color = color
         self.selected = False
         self.is_auto_imported = False  # Track if this box was auto-imported from HTML
-        # Font size multipliers (base values that scale with zoom)
-        self.text_font_size = 1.0  # Title font size multiplier
-        self.subtitle_font_size = 1.0  # Subtitle font size multiplier
-        self.footer_font_size = 1.0  # Footer font size multiplier
+        # Font sizes (actual point sizes, not multipliers)
+        self.title_font_size = 14  # Title font size (default 14pt)
+        self.subtitle_font_size = 11  # Subtitle font size (default 11pt)
+        self.footer_font_size = 9  # Footer font size (default 9pt)
         self.line_id = None
         self.line_waypoints = []
         self.rect_id = None
@@ -258,18 +258,23 @@ class ControlBox:
             fill=self.color, outline=outline, width=width, tags=f"box_{id(self)}"
         )
 
-        # Font size scales with zoom and font size multiplier
-        font_size_title = max(7, int(9 * zoom * self.text_font_size))
-        font_size_subtitle = max(5, int(7 * zoom * self.subtitle_font_size))
-        font_size_footer = max(4, int(6 * zoom * self.footer_font_size))
+        # Font size SCALES with zoom on canvas for visual proportion
+        # At high zoom (200%+), text is larger; at low zoom (44%), text is smaller
+        # But always clamped to readable minimum (6pt) and reasonable maximum (72pt)
+        font_size_title = max(6, min(72, int(self.title_font_size * zoom)))
+        font_size_subtitle = max(6, min(72, int(self.subtitle_font_size * zoom)))
+        font_size_footer = max(6, min(72, int(self.footer_font_size * zoom)))
 
         # Title text - at top (within 2% of box height from top)
         title_y = y_scaled + h_scaled * 0.08  # 2% + some padding
+        # Width in pixels: 90% of scaled box width
+        text_width_pixels = int(w_scaled * 0.9)
         self.text_id = self.canvas.create_text(
             x_scaled + w_scaled / 2, title_y,
             text=self.wrap_text(self.text, self.width, font_size_title),
             fill="black", font=("Arial", font_size_title, "bold"),
-            tags=f"text_{id(self)}", justify=tk.CENTER, width=int(w_scaled * 0.9)
+            width=text_width_pixels,
+            tags=f"text_{id(self)}", justify=tk.CENTER
         )
 
         # Subtitle text - in middle
@@ -278,8 +283,9 @@ class ControlBox:
             self.subtitle_id = self.canvas.create_text(
                 x_scaled + w_scaled / 2, subtitle_y,
                 text=self.wrap_text(self.subtitle, self.width, font_size_subtitle),
-                fill="#333333", font=("Arial", font_size_subtitle),
-                tags=f"subtitle_{id(self)}", justify=tk.CENTER, width=int(w_scaled * 0.9)
+                fill="black", font=("Arial", font_size_subtitle),
+                width=text_width_pixels,
+                tags=f"subtitle_{id(self)}", justify=tk.CENTER
             )
 
         # Footer text - at bottom (within 2% of box height from bottom)
@@ -288,8 +294,9 @@ class ControlBox:
             self.footer_id = self.canvas.create_text(
                 x_scaled + w_scaled / 2, footer_y,
                 text=self.wrap_text(self.footer, self.width, font_size_footer),
-                fill="#555555", font=("Arial", font_size_footer),
-                tags=f"footer_{id(self)}", justify=tk.CENTER, width=int(w_scaled * 0.9)
+                fill="black", font=("Arial", font_size_footer),
+                width=text_width_pixels,
+                tags=f"footer_{id(self)}", justify=tk.CENTER
             )
 
         # Draw resize handle at bottom-right only if in resize mode
@@ -420,6 +427,12 @@ class LayoutEditor:
             anchor="center", padx=0, pady=0)
         btn_load_html.pack(side=tk.LEFT, padx=2)
         Tooltip(btn_load_html, "Load DCS HTML controls")
+
+        btn_open = tk.Button(
+            file_frame, text="📂", command=self.open_layout, width=4, height=2, font=("Arial", 14),
+            anchor="center", padx=0, pady=0)
+        btn_open.pack(side=tk.LEFT, padx=2)
+        Tooltip(btn_open, "Open existing layout")
 
         btn_save = tk.Button(
             file_frame, text="💾", command=self.save_layout, width=4, height=2, font=("Arial", 14),
@@ -561,9 +574,14 @@ class LayoutEditor:
 
         # Load image
         self.image = Image.open(image_path)
+        # Auto-fit zoom to show entire image
+        self.zoom = self.calculate_autofit_zoom()
+        self.pan_x = 0
+        self.pan_y = 0
+        self.zoom_label.config(text=f"{int(self.zoom * 100)}%")
         self.redraw_canvas()
         self.status.config(
-            text=f"Loaded: {device_name} ({self.image.size[0]}x{self.image.size[1]})")
+            text=f"Loaded: {device_name} ({self.image.size[0]}x{self.image.size[1]}) at {int(self.zoom * 100)}%")
 
     def load_html(self):
         """Load DCS HTML and create control boxes."""
@@ -1234,57 +1252,60 @@ class LayoutEditor:
         h_var.trace_add("write", on_height_change)
 
         # Font Size section
-        ttk.Label(self.properties_inner, text="Text Font Sizes", font=(
+        ttk.Label(self.properties_inner, text="Font Sizes (points)", font=(
             "Arial", 10, "bold")).pack(anchor="w", padx=10, pady=(15, 5))
 
-        # Title font size
-        ttk.Label(self.properties_inner, text="Title Size:").pack(
+        # Title font size (spinbox for actual point size)
+        ttk.Label(self.properties_inner, text="Title:").pack(
             anchor="w", padx=10)
-        title_size_var = tk.StringVar(value=str(round(box.text_font_size, 1)))
-        title_size_entry = ttk.Entry(self.properties_inner,
-                                     textvariable=title_size_var, width=25)
-        title_size_entry.pack(padx=10, pady=2, fill=tk.X)
+        title_size_var = tk.StringVar(value=str(box.title_font_size))
+        title_size_spinbox = ttk.Spinbox(self.properties_inner,
+                                         from_=6, to=36, textvariable=title_size_var,
+                                         width=25)
+        title_size_spinbox.pack(padx=10, pady=2, fill=tk.X)
 
         def on_title_size_change(*args):
             try:
-                box.text_font_size = max(0.5, min(2.0, float(title_size_var.get())))
-                title_size_var.set(str(round(box.text_font_size, 1)))
+                box.title_font_size = max(6, min(36, int(title_size_var.get())))
+                title_size_var.set(str(box.title_font_size))
                 self.redraw_canvas()
             except ValueError:
                 pass
 
         title_size_var.trace_add("write", on_title_size_change)
 
-        # Subtitle font size
-        ttk.Label(self.properties_inner, text="Subtitle Size:").pack(
+        # Subtitle font size (spinbox for actual point size)
+        ttk.Label(self.properties_inner, text="Subtitle:").pack(
             anchor="w", padx=10)
-        subtitle_size_var = tk.StringVar(value=str(round(box.subtitle_font_size, 1)))
-        subtitle_size_entry = ttk.Entry(self.properties_inner,
-                                        textvariable=subtitle_size_var, width=25)
-        subtitle_size_entry.pack(padx=10, pady=2, fill=tk.X)
+        subtitle_size_var = tk.StringVar(value=str(box.subtitle_font_size))
+        subtitle_size_spinbox = ttk.Spinbox(self.properties_inner,
+                                            from_=6, to=36, textvariable=subtitle_size_var,
+                                            width=25)
+        subtitle_size_spinbox.pack(padx=10, pady=2, fill=tk.X)
 
         def on_subtitle_size_change(*args):
             try:
-                box.subtitle_font_size = max(0.5, min(2.0, float(subtitle_size_var.get())))
-                subtitle_size_var.set(str(round(box.subtitle_font_size, 1)))
+                box.subtitle_font_size = max(6, min(36, int(subtitle_size_var.get())))
+                subtitle_size_var.set(str(box.subtitle_font_size))
                 self.redraw_canvas()
             except ValueError:
                 pass
 
         subtitle_size_var.trace_add("write", on_subtitle_size_change)
 
-        # Footer font size
-        ttk.Label(self.properties_inner, text="Footer Size:").pack(
+        # Footer font size (spinbox for actual point size)
+        ttk.Label(self.properties_inner, text="Footer:").pack(
             anchor="w", padx=10)
-        footer_size_var = tk.StringVar(value=str(round(box.footer_font_size, 1)))
-        footer_size_entry = ttk.Entry(self.properties_inner,
-                                      textvariable=footer_size_var, width=25)
-        footer_size_entry.pack(padx=10, pady=2, fill=tk.X)
+        footer_size_var = tk.StringVar(value=str(box.footer_font_size))
+        footer_size_spinbox = ttk.Spinbox(self.properties_inner,
+                                          from_=6, to=36, textvariable=footer_size_var,
+                                          width=25)
+        footer_size_spinbox.pack(padx=10, pady=2, fill=tk.X)
 
         def on_footer_size_change(*args):
             try:
-                box.footer_font_size = max(0.5, min(2.0, float(footer_size_var.get())))
-                footer_size_var.set(str(round(box.footer_font_size, 1)))
+                box.footer_font_size = max(6, min(36, int(footer_size_var.get())))
+                footer_size_var.set(str(box.footer_font_size))
                 self.redraw_canvas()
             except ValueError:
                 pass
@@ -1510,7 +1531,10 @@ class LayoutEditor:
                     "subtitle": box.subtitle,
                     "footer": box.footer,
                     "control_key": box.control_key,
-                    "color": box.color
+                    "color": box.color,
+                    "title_font_size": box.title_font_size,
+                    "subtitle_font_size": box.subtitle_font_size,
+                    "footer_font_size": box.footer_font_size
                 }
                 for box in self.boxes
             ],
@@ -1531,8 +1555,127 @@ class LayoutEditor:
         messagebox.showinfo("Success", f"Layout saved to {layout_path}")
         self.status.config(text=f"Layout saved")
 
+    def calculate_autofit_zoom(self):
+        """Calculate zoom level to fit entire image in canvas with padding."""
+        if not self.image:
+            return 1.0
+        
+        # Get canvas dimensions
+        self.root.update_idletasks()  # Ensure canvas is fully rendered
+        canvas_width = self.canvas.winfo_width()
+        canvas_height = self.canvas.winfo_height()
+        
+        # If canvas not yet sized, return default
+        if canvas_width <= 1 or canvas_height <= 1:
+            return 1.0
+        
+        # Calculate zoom to fit image with 5% padding
+        padding = 0.95
+        zoom_x = (canvas_width / self.image.width) * padding
+        zoom_y = (canvas_height / self.image.height) * padding
+        
+        # Use the smaller zoom to fit both dimensions
+        zoom = min(zoom_x, zoom_y)
+        
+        # Clamp to reasonable range
+        return max(0.1, min(3.0, zoom))
+
+    def open_layout(self):
+        """Open existing layout from JSON."""
+        layout_path = filedialog.askopenfilename(
+            initialdir=LAYOUTS_DIR,
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+            title="Open Layout"
+        )
+        
+        if not layout_path:
+            return
+        
+        try:
+            with open(layout_path, "r") as f:
+                layout_data = json.load(f)
+            
+            # Set device name
+            self.device_name = layout_data.get("device_name", "Untitled")
+            
+            # Load image from the same directory as the JSON
+            layout_dir = Path(layout_path).parent
+            image_path = None
+            for img_ext in ["*.png", "*.jpg", "*.jpeg"]:
+                matches = list(layout_dir.glob(img_ext))
+                if matches:
+                    image_path = matches[0]
+                    break
+            
+            if image_path and image_path.exists():
+                self.image = Image.open(image_path)
+                self.image_thumbnail_cache.clear()
+                # Auto-fit zoom to show entire image
+                self.zoom = self.calculate_autofit_zoom()
+                self.pan_x = 0
+                self.pan_y = 0
+                self.zoom_label.config(text=f"{int(self.zoom * 100)}%")
+                self.status.config(text=f"Loaded image: {image_path.name} (auto-fit: {int(self.zoom * 100)}%)")
+            else:
+                messagebox.showwarning("Warning", 
+                    f"Device image not found in {layout_dir}\n"
+                    f"You can still edit boxes, but image won't display")
+            
+            # Clear existing boxes and lines
+            self.boxes = []
+            self.lines = []
+            self.selected_boxes = []
+            self.selected_box = None
+            self.selected_line = None
+            
+            # Load boxes
+            for box_data in layout_data.get("boxes", []):
+                box = ControlBox(
+                    self.canvas,
+                    box_data["x"],
+                    box_data["y"],
+                    width=box_data.get("width", 200),
+                    height=box_data.get("height", 200),
+                    text=box_data.get("text", ""),
+                    subtitle=box_data.get("subtitle", ""),
+                    footer=box_data.get("footer", ""),
+                    control_key=box_data.get("control_key", ""),
+                    color=box_data.get("color", "#81ff83")
+                )
+                box.is_auto_imported = False  # User loaded layout, not auto-imported
+                # Load font sizes (with defaults if not present)
+                box.title_font_size = box_data.get("title_font_size", 14)
+                box.subtitle_font_size = box_data.get("subtitle_font_size", 11)
+                box.footer_font_size = box_data.get("footer_font_size", 9)
+                self.boxes.append(box)
+            
+            # Load lines
+            for line_data in layout_data.get("lines", []):
+                end_box_index = line_data.get("end_box_index", -1)
+                if 0 <= end_box_index < len(self.boxes):
+                    line = {
+                        "start_point": tuple(line_data["start_point"]) if line_data.get("start_point") else (0, 0),
+                        "end_box": self.boxes[end_box_index],
+                        "waypoints": [tuple(wp) for wp in line_data.get("waypoints", [])]
+                    }
+                    self.lines.append(line)
+            
+            self.redraw_canvas()
+            messagebox.showinfo("Success", 
+                f"Loaded layout: {self.device_name}\n"
+                f"Boxes: {len(self.boxes)}\n"
+                f"Lines: {len(self.lines)}")
+            self.status.config(text=f"Loaded layout: {self.device_name}")
+        
+        except json.JSONDecodeError:
+            messagebox.showerror("Error", "Invalid JSON file")
+        except KeyError as e:
+            messagebox.showerror("Error", f"Missing required field: {e}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load layout: {e}")
+
     def export_png(self):
-        """Export layout as PNG."""
+        """Export layout as PNG with text wrapping and automatic sizing."""
         if not self.device_name or not self.image:
             messagebox.showerror("Error", "Load image first")
             return
@@ -1540,6 +1683,68 @@ class LayoutEditor:
         # Create image with boxes
         export_img = self.image.copy()
         draw = ImageDraw.Draw(export_img)
+        
+        # Calculate scale factor: how much larger is the export image compared to canvas view
+        if self.zoom > 0:
+            scale_factor = 1.0 / self.zoom
+        else:
+            scale_factor = 1.0
+        
+        # Try to load Arial font from Windows
+        font_path = None
+        try:
+            import os
+            win_fonts = Path("C:/Windows/Fonts")
+            if win_fonts.exists():
+                arial_files = list(win_fonts.glob("arial.ttf"))
+                if arial_files:
+                    font_path = str(arial_files[0])
+        except:
+            pass
+
+        def get_font(size):
+            """Get a font at the specified size."""
+            if font_path:
+                try:
+                    return ImageFont.truetype(font_path, size)
+                except:
+                    return ImageFont.load_default()
+            return ImageFont.load_default()
+
+        def wrap_text_export(text, box_width, font_size):
+            """Wrap text to fit within box width."""
+            if not text:
+                return text
+            
+            avg_char_width = font_size * 0.5
+            available_width = box_width * 0.9
+            max_chars_per_line = max(1, int(available_width / avg_char_width))
+            
+            if len(text) <= max_chars_per_line:
+                return text
+            
+            words = text.split()
+            lines = []
+            current_line = []
+            current_length = 0
+            
+            for word in words:
+                word_length = len(word)
+                space_needed = 1 if current_line else 0
+                
+                if current_length + space_needed + word_length <= max_chars_per_line:
+                    current_line.append(word)
+                    current_length += space_needed + word_length
+                else:
+                    if current_line:
+                        lines.append(" ".join(current_line))
+                    current_line = [word]
+                    current_length = word_length
+            
+            if current_line:
+                lines.append(" ".join(current_line))
+            
+            return "\n".join(lines)
 
         for box in self.boxes:
             # Draw box
@@ -1547,35 +1752,80 @@ class LayoutEditor:
                 [box.x, box.y, box.x + box.width, box.y + box.height],
                 fill=box.color, outline="#333333", width=2
             )
-            # Draw title (at top, within 2%)
-            title_y = box.y + box.height * 0.08
-            draw.text(
-                (box.x + box.width / 2, title_y),
-                box.text,
-                fill="black", anchor="mm", font=None
-            )
-            # Draw subtitle (in middle)
-            if box.subtitle:
+            
+            # Scale font sizes from canvas to export resolution
+            title_font_size = max(8, int(box.title_font_size * scale_factor))
+            subtitle_font_size = max(8, int(box.subtitle_font_size * scale_factor))
+            footer_font_size = max(8, int(box.footer_font_size * scale_factor))
+            
+            # Apply text wrapping
+            wrapped_title = wrap_text_export(box.text, box.width, title_font_size)
+            wrapped_subtitle = wrap_text_export(box.subtitle, box.width, subtitle_font_size) if box.subtitle else ""
+            wrapped_footer = wrap_text_export(box.footer, box.width, footer_font_size) if box.footer else ""
+            
+            # Draw title at top
+            if wrapped_title:
+                title_font = get_font(title_font_size)
+                title_x = box.x + box.width / 2
+                title_y = box.y + box.height * 0.08
+                
+                # Clamp to box bounds (with small margin)
+                title_x = max(box.x + 5, min(box.x + box.width - 5, title_x))
+                title_y = max(box.y + 5, min(box.y + box.height - 5, title_y))
+                
+                try:
+                    draw.text(
+                        (title_x, title_y),
+                        wrapped_title,
+                        fill="black", anchor="mm", font=title_font
+                    )
+                except Exception:
+                    pass
+            
+            # Draw subtitle in middle
+            if wrapped_subtitle:
+                subtitle_font = get_font(subtitle_font_size)
+                subtitle_x = box.x + box.width / 2
                 subtitle_y = box.y + box.height * 0.5
-                draw.text(
-                    (box.x + box.width / 2, subtitle_y),
-                    box.subtitle,
-                    fill="#333333", anchor="mm", font=None
-                )
-            # Draw footer (at bottom, within 2%)
-            if box.footer:
+                
+                # Clamp to box bounds
+                subtitle_x = max(box.x + 5, min(box.x + box.width - 5, subtitle_x))
+                subtitle_y = max(box.y + 5, min(box.y + box.height - 5, subtitle_y))
+                
+                try:
+                    draw.text(
+                        (subtitle_x, subtitle_y),
+                        wrapped_subtitle,
+                        fill="black", anchor="mm", font=subtitle_font
+                    )
+                except Exception:
+                    pass
+            
+            # Draw footer at bottom
+            if wrapped_footer:
+                footer_font = get_font(footer_font_size)
+                footer_x = box.x + box.width / 2
                 footer_y = box.y + box.height * 0.92
-                draw.text(
-                    (box.x + box.width / 2, footer_y),
-                    box.footer,
-                    fill="#555555", anchor="mm", font=None
-                )
+                
+                # Clamp to box bounds
+                footer_x = max(box.x + 5, min(box.x + box.width - 5, footer_x))
+                footer_y = max(box.y + 5, min(box.y + box.height - 5, footer_y))
+                
+                try:
+                    draw.text(
+                        (footer_x, footer_y),
+                        wrapped_footer,
+                        fill="black", anchor="mm", font=footer_font
+                    )
+                except Exception:
+                    pass
 
         device_dir = LAYOUTS_DIR / self.device_name
         export_path = device_dir / "layout.png"
         export_img.save(export_path)
 
         messagebox.showinfo("Success", f"Exported to {export_path}")
+
 
 
 if __name__ == "__main__":
